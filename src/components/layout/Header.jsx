@@ -25,7 +25,7 @@ const BREADCRUMBS = {
 };
 
 export default function Header({ onMenuClick }) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();    
   const { user, logout }       = useAuth();
   const location               = useLocation();
   const [dropOpen, setDropOpen] = useState(false);

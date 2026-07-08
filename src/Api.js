@@ -166,16 +166,24 @@ export const evenementApi = {
   delete: (id) => api.delete(`/evenements/${id}`),
 };
 
-// Documents
 export const documentApi = {
-  getAll: (params) => api.get('/documents', { params }),
-  getById: (id) => api.get(`/documents/${id}`),
-  getByEmployer: (id) => api.get(`/documents/employer/${id}`),
-  getByProjet: (projetId) => api.get(`/documents/projet/${projetId}`),
-  upload: (formData) => api.post('/documents', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
-  update: (id, data) => api.put(`/documents/${id}`, data),
-  download: (id) => api.get(`/documents/download/${id}`, { responseType: 'blob' }),
-  delete: (id) => api.delete(`/documents/${id}`),
+    // Téléchargement - utiliser le bon chemin
+    download: (id) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),
+    
+    // Les autres méthodes...
+    getAll: (params) => api.get('/documents', { params }),
+    getMyDocuments: (params) => api.get('/documents/me', { params }),
+    getMetadata: (id) => api.get(`/documents/${id}/metadata`),
+    upload: (formData) => api.post('/documents/upload', formData),
+    update: (id, data) => api.put(`/documents/${id}`, data),
+    delete: (id) => api.delete(`/documents/${id}`),
+    transfer: (id, data) => api.post(`/documents/${id}/transfer`, data),
+    markAsRead: (id) => api.patch(`/documents/${id}/read`),
+    archive: (id) => api.patch(`/documents/${id}/archive`),
+    getReceived: (employerId) => api.get(`/documents/received/${employerId}`),
+    getSent: (employerId) => api.get(`/documents/sent/${employerId}`),
+    getUnread: (employerId) => api.get(`/documents/unread/${employerId}`),
+    getPublic: () => api.get('/documents/public'),
 };
 
 export default api;

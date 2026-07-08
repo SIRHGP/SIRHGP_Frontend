@@ -1,6 +1,6 @@
 // components/NotificationBell.jsx
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Check, Trash2, X } from 'lucide-react';
+import { Bell, Check, Trash2 } from 'lucide-react';
 import { useNotifications } from '../contexts/NotificationContext';
 import { formatDistanceToNow, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -28,7 +28,6 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      {/* Bouton cloche */}
       <button
         onClick={() => setOpen(o => !o)}
         style={{
@@ -57,7 +56,6 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div style={{
           position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 999,
@@ -69,7 +67,6 @@ export default function NotificationBell() {
           display: 'flex', flexDirection: 'column',
           overflow: 'hidden',
         }}>
-          {/* Header */}
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             padding: '12px 16px',
@@ -119,7 +116,6 @@ export default function NotificationBell() {
             </div>
           </div>
 
-          {/* Liste */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {notifications.length === 0 ? (
               <div style={{ padding: '40px 24px', textAlign: 'center' }}>
@@ -145,7 +141,6 @@ export default function NotificationBell() {
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
                   onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : `${meta.color}08`}
                 >
-                  {/* Icône */}
                   <div style={{
                     width: 36, height: 36, borderRadius: '50%',
                     background: `${meta.color}18`,
@@ -155,7 +150,6 @@ export default function NotificationBell() {
                     {meta.icon}
                   </div>
 
-                  {/* Contenu */}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
                       fontSize: 13, fontWeight: notif.read ? 400 : 700,
@@ -174,7 +168,6 @@ export default function NotificationBell() {
                     </p>
                   </div>
 
-                  {/* Point non-lu */}
                   {!notif.read && (
                     <div style={{
                       width: 8, height: 8, borderRadius: '50%',

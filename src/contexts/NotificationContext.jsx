@@ -1,31 +1,30 @@
 // contexts/NotificationContext.jsx
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from './Authcontext';
+import toast from 'react-hot-toast';
 
 const NotificationContext = createContext(null);
 
-// ── Types de notifications ───────────────────────────────────────────────────
 export const NOTIF_TYPES = {
-  DOCUMENT_SENT:     'DOCUMENT_SENT',     // X a envoyé un document à Y
-  DOCUMENT_RECEIVED: 'DOCUMENT_RECEIVED', // Y a reçu un document de X
-  TASK_ASSIGNED:     'TASK_ASSIGNED',     // Une tâche vous a été assignée
-  TASK_UPDATED:      'TASK_UPDATED',      // Statut d'une tâche modifié
-  FACTURE_CREATED:   'FACTURE_CREATED',   // Une facture vous concerne
-  FACTURE_PAID:      'FACTURE_PAID',      // Une facture a été payée
-  EVENT_INVITED:     'EVENT_INVITED',     // Invitation à un événement
+  DOCUMENT_SENT: 'DOCUMENT_SENT',
+  DOCUMENT_RECEIVED: 'DOCUMENT_RECEIVED',
+  TASK_ASSIGNED: 'TASK_ASSIGNED',
+  TASK_UPDATED: 'TASK_UPDATED',
+  FACTURE_CREATED: 'FACTURE_CREATED',
+  FACTURE_PAID: 'FACTURE_PAID',
+  EVENT_INVITED: 'EVENT_INVITED',
 };
 
 const NOTIF_META = {
-  DOCUMENT_SENT:     { icon: '📤', color: '#6366F1', label: 'Document envoyé'   },
-  DOCUMENT_RECEIVED: { icon: '📥', color: '#10B981', label: 'Document reçu'     },
-  TASK_ASSIGNED:     { icon: '✅', color: '#3B82F6', label: 'Tâche assignée'    },
-  TASK_UPDATED:      { icon: '🔄', color: '#F59E0B', label: 'Tâche mise à jour' },
-  FACTURE_CREATED:   { icon: '🧾', color: '#8B5CF6', label: 'Nouvelle facture'  },
-  FACTURE_PAID:      { icon: '💰', color: '#10B981', label: 'Facture payée'     },
-  EVENT_INVITED:     { icon: '📅', color: '#0EA5E9', label: 'Invitation'        },
+  DOCUMENT_SENT: { icon: '📤', color: '#6366F1', label: 'Document envoye' },
+  DOCUMENT_RECEIVED: { icon: '📥', color: '#10B981', label: 'Document recu' },
+  TASK_ASSIGNED: { icon: '✓', color: '#3B82F6', label: 'Tache assignee' },
+  TASK_UPDATED: { icon: '🔄', color: '#F59E0B', label: 'Tache mise a jour' },
+  FACTURE_CREATED: { icon: '💰', color: '#8B5CF6', label: 'Nouvelle facture' },
+  FACTURE_PAID: { icon: '💸', color: '#10B981', label: 'Facture payee' },
+  EVENT_INVITED: { icon: '📅', color: '#0EA5E9', label: 'Invitation' },
 };
 
-// ── Clé localStorage par utilisateur ────────────────────────────────────────
 function storageKey(userId) {
   return `sirhgp-notifs-${userId}`;
 }
@@ -41,7 +40,6 @@ function loadNotifs(userId) {
 
 function saveNotifs(userId, notifs) {
   try {
-    // Garder max 100 notifications
     const trimmed = notifs.slice(0, 100);
     localStorage.setItem(storageKey(userId), JSON.stringify(trimmed));
   } catch {}
@@ -50,8 +48,8 @@ function saveNotifs(userId, notifs) {
 export function NotificationProvider({ children }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
+  const pollRef = useRef(null);
 
-  // ── Charger les notifs de l'utilisateur courant au login ──
   useEffect(() => {
     if (user?.id) {
       const stored = loadNotifs(user.id);
@@ -61,20 +59,15 @@ export function NotificationProvider({ children }) {
     }
   }, [user?.id]);
 
-  // ── Persister à chaque changement ──
   useEffect(() => {
     if (user?.id) {
       saveNotifs(user.id, notifications);
     }
   }, [notifications, user?.id]);
 
-  // ── Écouter les notifs des AUTRES utilisateurs (simulation polling) ──
-  // En production : remplacer par WebSocket ou SSE
-  const pollRef = useRef(null);
   useEffect(() => {
     if (!user?.id) return;
 
-    // Polling toutes les 5s : cherche les notifs entrants dans le "bus" partagé
     const checkIncoming = () => {
       const busKey = `sirhgp-notif-bus-${user.id}`;
       try {
@@ -83,13 +76,11 @@ export function NotificationProvider({ children }) {
         const incoming = JSON.parse(raw);
         if (!incoming?.length) return;
 
-        // Dépiler et ajouter aux notifs locales
         setNotifications(prev => {
           const existingIds = new Set(prev.map(n => n.id));
           const newOnes = incoming.filter(n => !existingIds.has(n.id));
           if (!newOnes.length) return prev;
 
-          // Notification navigateur si permission accordée
           newOnes.forEach(n => {
             if (Notification.permission === 'granted') {
               new Notification(n.title, { body: n.body, icon: '/favicon.ico' });
@@ -99,7 +90,6 @@ export function NotificationProvider({ children }) {
           return [...newOnes, ...prev];
         });
 
-        // Vider le bus après lecture
         localStorage.removeItem(busKey);
       } catch {}
     };
@@ -112,19 +102,20 @@ export function NotificationProvider({ children }) {
     return () => clearInterval(pollRef.current);
   }, [user?.id]);
 
-  // ── Envoyer une notification à un autre utilisateur ──────────────────────
-  // Cette fonction écrit dans le "bus" de l'autre utilisateur.
-  // En production, ce serait un appel API → backend → WebSocket.
   const pushToUser = useCallback((targetUserId, notif) => {
     const busKey = `sirhgp-notif-bus-${targetUserId}`;
     try {
       const existing = JSON.parse(localStorage.getItem(busKey) || '[]');
-      existing.unshift({ ...notif, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString(), read: false });
+      existing.unshift({ 
+        ...notif, 
+        id: `${Date.now()}-${Math.random()}`, 
+        createdAt: new Date().toISOString(), 
+        read: false 
+      });
       localStorage.setItem(busKey, JSON.stringify(existing));
     } catch {}
   }, []);
 
-  // ── Ajouter une notif locale (pour l'utilisateur courant) ────────────────
   const addNotification = useCallback((notif) => {
     const full = {
       id: `${Date.now()}-${Math.random()}`,
@@ -136,57 +127,139 @@ export function NotificationProvider({ children }) {
     return full;
   }, []);
 
-  // ── Notifier 2 utilisateurs lors d'un transfert de document ──────────────
   const notifyDocumentTransfer = useCallback(({ doc, sender, recipient }) => {
-    // Notif pour l'EXPÉDITEUR (confirmation)
     addNotification({
       type: NOTIF_TYPES.DOCUMENT_SENT,
-      title: 'Document envoyé',
-      body: `Vous avez transféré "${doc.nom}" à ${recipient.name}`,
+      title: 'Document envoye',
+      body: `Vous avez transfere "${doc.nom}" a ${recipient.name}`,
       meta: { docId: doc.id, docNom: doc.nom, recipientId: recipient.id, recipientName: recipient.name },
     });
 
-    // Notif pour le DESTINATAIRE (via bus)
     pushToUser(recipient.id, {
       type: NOTIF_TYPES.DOCUMENT_RECEIVED,
-      title: 'Nouveau document reçu',
-      body: `${sender.name} vous a envoyé "${doc.nom}"`,
+      title: 'Nouveau document recu',
+      body: `${sender.name} vous a envoye "${doc.nom}"`,
       meta: { docId: doc.id, docNom: doc.nom, senderId: sender.id, senderName: sender.name },
     });
   }, [addNotification, pushToUser]);
 
-  // ── Notifier lors d'une assignation de tâche ─────────────────────────────
   const notifyTaskAssigned = useCallback(({ task, assignedTo, assignedBy }) => {
     if (!assignedTo?.id || assignedTo.id === assignedBy?.id) return;
 
     pushToUser(assignedTo.id, {
       type: NOTIF_TYPES.TASK_ASSIGNED,
-      title: 'Tâche assignée',
-      body: `${assignedBy?.name || 'Un responsable'} vous a assigné "${task.titre}"`,
+      title: 'Tache assignee',
+      body: `${assignedBy?.name || 'Un responsable'} vous a assigne "${task.titre}"`,
       meta: { taskId: task.id, taskTitre: task.titre, assignedById: assignedBy?.id },
     });
+    
+    toast.success(`Tache assignee a ${assignedTo.name}`);
   }, [pushToUser]);
 
-  // ── Notifier lors d'une facture ───────────────────────────────────────────
   const notifyFacture = useCallback(({ facture, targetUserId, type = NOTIF_TYPES.FACTURE_CREATED }) => {
+    const notif = {
+      type,
+      title: NOTIF_META[type].label,
+      body: `Facture "${facture.titre}" - ${facture.montantHT} XAF`,
+      meta: { factureId: facture.id, factureTitre: facture.titre },
+    };
+
     if (!targetUserId || targetUserId === user?.id) {
-      addNotification({
-        type,
-        title: NOTIF_META[type].label,
-        body: `Facture "${facture.titre}" — ${facture.montantHT} XAF`,
-        meta: { factureId: facture.id, factureTitre: facture.titre },
-      });
+      addNotification(notif);
     } else {
-      pushToUser(targetUserId, {
-        type,
-        title: NOTIF_META[type].label,
-        body: `Facture "${facture.titre}" — ${facture.montantHT} XAF`,
-        meta: { factureId: facture.id, factureTitre: facture.titre },
-      });
+      pushToUser(targetUserId, notif);
     }
+    
+    toast.success(notif.body);
   }, [user?.id, addNotification, pushToUser]);
 
-  // ── Marquer comme lues ────────────────────────────────────────────────────
+  const notifyEvent = useCallback(({ event, action, targetUserId, currentUser }) => {
+    const messages = {
+      created: `Nouvel evenement: ${event.titre}`,
+      modified: `Evenement modifie: ${event.titre}`,
+      deleted: `Evenement supprime: ${event.titre}`,
+      shared: `${currentUser?.name} vous a invite a "${event.titre}"`
+    };
+    
+    const titles = {
+      created: 'Evenement cree',
+      modified: 'Evenement modifie',
+      deleted: 'Evenement supprime',
+      shared: 'Invitation recue'
+    };
+
+    const notif = {
+      type: `EVENT_${action.toUpperCase()}`,
+      title: titles[action],
+      body: messages[action],
+      meta: { eventId: event.id, eventTitle: event.titre, action }
+    };
+
+    if (targetUserId && targetUserId !== currentUser?.id) {
+      pushToUser(targetUserId, notif);
+    } else {
+      addNotification(notif);
+    }
+    
+    toast.success(messages[action]);
+  }, [addNotification, pushToUser]);
+
+  const notifyDocument = useCallback(({ doc, action, recipient, currentUser }) => {
+    const messages = {
+      uploaded: `Document uploade: ${doc.nom}`,
+      modified: `Document modifie: ${doc.nom}`,
+      deleted: `Document supprime: ${doc.nom}`
+    };
+    
+    const titles = {
+      uploaded: 'Document uploade',
+      modified: 'Document modifie',
+      deleted: 'Document supprime'
+    };
+
+    const notif = {
+      type: `DOCUMENT_${action.toUpperCase()}`,
+      title: titles[action],
+      body: messages[action],
+      meta: { docId: doc.id, docName: doc.nom, action }
+    };
+
+    if (recipient?.id && recipient.id !== currentUser?.id) {
+      pushToUser(recipient.id, notif);
+    }
+    addNotification(notif);
+    toast.success(messages[action]);
+  }, [addNotification, pushToUser]);
+
+  const notifyTask = useCallback(({ task, action, assignee, currentUser }) => {
+    const messages = {
+      created: `Tache creee: ${task.titre}`,
+      modified: `Tache modifiee: ${task.titre}`,
+      deleted: `Tache supprimee: ${task.titre}`,
+      completed: `Tache terminee: ${task.titre}`
+    };
+    
+    const titles = {
+      created: 'Tache creee',
+      modified: 'Tache modifiee',
+      deleted: 'Tache supprimee',
+      completed: 'Bravo !'
+    };
+
+    const notif = {
+      type: `TASK_${action.toUpperCase()}`,
+      title: titles[action],
+      body: messages[action],
+      meta: { taskId: task.id, taskTitle: task.titre, action }
+    };
+
+    if (assignee?.id && assignee.id !== currentUser?.id) {
+      pushToUser(assignee.id, notif);
+    }
+    addNotification(notif);
+    toast.success(messages[action]);
+  }, [addNotification, pushToUser]);
+
   const markRead = useCallback((id) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
   }, []);
@@ -210,6 +283,9 @@ export function NotificationProvider({ children }) {
       notifyDocumentTransfer,
       notifyTaskAssigned,
       notifyFacture,
+      notifyEvent,
+      notifyDocument,
+      notifyTask,
       markRead,
       markAllRead,
       clearAll,
