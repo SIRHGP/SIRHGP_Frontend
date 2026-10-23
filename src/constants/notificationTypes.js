@@ -1,8 +1,15 @@
 // constants/notificationTypes.js
+// Icone unique : cloche Lucide neutre partout (aucun emoji, aucune icone par type).
+import { Bell } from 'lucide-react';
+
+const NEUTRAL = '#64748B';
+const BELL_META = (defaultTitle) => ({ icon: Bell, color: NEUTRAL, defaultTitle });
+
 export const NOTIF_TYPES = {
   // Documents
   DOCUMENT_UPLOADED: 'DOCUMENT_UPLOADED',
   DOCUMENT_TRANSFERRED: 'DOCUMENT_TRANSFERRED',
+  DOCUMENT_SENT: 'DOCUMENT_SENT',
   DOCUMENT_RECEIVED: 'DOCUMENT_RECEIVED',
   DOCUMENT_MODIFIED: 'DOCUMENT_MODIFIED',
   DOCUMENT_DELETED: 'DOCUMENT_DELETED',
@@ -25,97 +32,41 @@ export const NOTIF_TYPES = {
   TASK_MODIFIED: 'TASK_MODIFIED',
   TASK_COMPLETED: 'TASK_COMPLETED',
   TASK_DELETED: 'TASK_DELETED',
+  TASK_OVERDUE: 'TASK_OVERDUE',
+
+  PERMISSION_DEMANDEE: 'PERMISSION_DEMANDEE',
+  PERMISSION_APPROUVEE: 'PERMISSION_APPROUVEE',
+  PERMISSION_REJETEE: 'PERMISSION_REJETEE',
+
+  // MANAGER → LEAD à la validation
+  EVALUATION_SOUMISE: 'EVALUATION_SOUMISE',
+  EVALUATION_VALIDEE: 'EVALUATION_VALIDEE',
 };
 
 export const NOTIF_META = {
-  [NOTIF_TYPES.DOCUMENT_UPLOADED]: {
-    icon: '📄',
-    color: '#6366F1',
-    defaultTitle: 'Document uploade',
-  },
-  [NOTIF_TYPES.DOCUMENT_TRANSFERRED]: {
-    icon: '📤',
-    color: '#10B981',
-    defaultTitle: 'Document transfere',
-  },
-  [NOTIF_TYPES.DOCUMENT_RECEIVED]: {
-    icon: '📥',
-    color: '#3B82F6',
-    defaultTitle: 'Document recu',
-  },
-  [NOTIF_TYPES.DOCUMENT_MODIFIED]: {
-    icon: '✏️',
-    color: '#F59E0B',
-    defaultTitle: 'Document modifie',
-  },
-  [NOTIF_TYPES.DOCUMENT_DELETED]: {
-    icon: '🗑️',
-    color: '#EF4444',
-    defaultTitle: 'Document supprime',
-  },
-  [NOTIF_TYPES.EVENT_CREATED]: {
-    icon: '📅',
-    color: '#8B5CF6',
-    defaultTitle: 'Evenement cree',
-  },
-  [NOTIF_TYPES.EVENT_MODIFIED]: {
-    icon: '📅',
-    color: '#F59E0B',
-    defaultTitle: 'Evenement modifie',
-  },
-  [NOTIF_TYPES.EVENT_DELETED]: {
-    icon: '🗑️',
-    color: '#EF4444',
-    defaultTitle: 'Evenement supprime',
-  },
-  [NOTIF_TYPES.EVENT_SHARED]: {
-    icon: '🔔',
-    color: '#6366F1',
-    defaultTitle: 'Invitation recue',
-  },
-  [NOTIF_TYPES.FACTURE_CREATED]: {
-    icon: '💰',
-    color: '#10B981',
-    defaultTitle: 'Facture creee',
-  },
-  [NOTIF_TYPES.FACTURE_MODIFIED]: {
-    icon: '✏️',
-    color: '#F59E0B',
-    defaultTitle: 'Facture modifiee',
-  },
-  [NOTIF_TYPES.FACTURE_VALIDATED]: {
-    icon: '✅',
-    color: '#10B981',
-    defaultTitle: 'Paiement enregistre',
-  },
-  [NOTIF_TYPES.FACTURE_DELETED]: {
-    icon: '🗑️',
-    color: '#EF4444',
-    defaultTitle: 'Facture supprimee',
-  },
-  [NOTIF_TYPES.TASK_CREATED]: {
-    icon: '✓',
-    color: '#3B82F6',
-    defaultTitle: 'Tache creee',
-  },
-  [NOTIF_TYPES.TASK_ASSIGNED]: {
-    icon: '👤',
-    color: '#8B5CF6',
-    defaultTitle: 'Tache assignee',
-  },
-  [NOTIF_TYPES.TASK_MODIFIED]: {
-    icon: '✏️',
-    color: '#F59E0B',
-    defaultTitle: 'Tache modifiee',
-  },
-  [NOTIF_TYPES.TASK_COMPLETED]: {
-    icon: '🏆',
-    color: '#10B981',
-    defaultTitle: 'Tache terminee',
-  },
-  [NOTIF_TYPES.TASK_DELETED]: {
-    icon: '🗑️',
-    color: '#EF4444',
-    defaultTitle: 'Tache supprimee',
-  },
+  [NOTIF_TYPES.TASK_OVERDUE]: BELL_META('Tâche en retard'),
+  [NOTIF_TYPES.DOCUMENT_UPLOADED]: BELL_META('Document téléversé'),
+  [NOTIF_TYPES.DOCUMENT_TRANSFERRED]: BELL_META('Document transféré'),
+  [NOTIF_TYPES.DOCUMENT_SENT]: BELL_META('Document envoyé'),
+  [NOTIF_TYPES.DOCUMENT_RECEIVED]: BELL_META('Document reçu'),
+  [NOTIF_TYPES.DOCUMENT_MODIFIED]: BELL_META('Document modifié'),
+  [NOTIF_TYPES.DOCUMENT_DELETED]: BELL_META('Document supprimé'),
+  [NOTIF_TYPES.EVENT_CREATED]: BELL_META('Événement créé'),
+  [NOTIF_TYPES.EVENT_MODIFIED]: BELL_META('Événement modifié'),
+  [NOTIF_TYPES.EVENT_DELETED]: BELL_META('Événement supprimé'),
+  [NOTIF_TYPES.EVENT_SHARED]: BELL_META('Invitation reçue'),
+  [NOTIF_TYPES.FACTURE_CREATED]: BELL_META('Facture créée'),
+  [NOTIF_TYPES.FACTURE_MODIFIED]: BELL_META('Facture modifiée'),
+  [NOTIF_TYPES.FACTURE_VALIDATED]: BELL_META('Paiement enregistre'),
+  [NOTIF_TYPES.FACTURE_DELETED]: BELL_META('Facture supprimée'),
+  [NOTIF_TYPES.TASK_CREATED]: BELL_META('Tâche créée'),
+  [NOTIF_TYPES.TASK_ASSIGNED]: BELL_META('Tâche assignée'),
+  [NOTIF_TYPES.TASK_MODIFIED]: BELL_META('Tâche modifiée'),
+  [NOTIF_TYPES.TASK_COMPLETED]: BELL_META('Tâche terminée'),
+  [NOTIF_TYPES.TASK_DELETED]: BELL_META('Tâche supprimée'),
+  [NOTIF_TYPES.PERMISSION_DEMANDEE]: BELL_META('Demande de permission'),
+  [NOTIF_TYPES.PERMISSION_APPROUVEE]: BELL_META('Permission approuvée'),
+  [NOTIF_TYPES.PERMISSION_REJETEE]: BELL_META('Permission rejetée'),
+  [NOTIF_TYPES.EVALUATION_SOUMISE]: BELL_META('Évaluation soumise'),
+  [NOTIF_TYPES.EVALUATION_VALIDEE]: BELL_META('Évaluation validée'),
 };

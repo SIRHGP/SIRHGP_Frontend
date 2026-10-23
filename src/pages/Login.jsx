@@ -1,30 +1,40 @@
+// pages/Login.jsx — Connexion multi-entreprise (la landing + l'inscription sont sur / et /register)
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
-import { Eye, EyeOff, Lock, Mail, Loader2 } from 'lucide-react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Eye, EyeOff, Lock, Mail, ArrowRight, Moon, Sun, UserPlus } from 'lucide-react';
 import { useAuth } from '../contexts/Authcontext';
-import { useTheme } from '../contexts/Themecontext';
-import toast from 'react-hot-toast';
-import { Toaster } from 'react-hot-toast';
+import { useTheme } from '../contexts/useTheme';
+import { Input, Button, Alert } from '../components/ui';
+import { portailFor } from '../roles';
+import toast, { Toaster } from 'react-hot-toast';
 
 export default function Login() {
   const { user, login } = useAuth();
   const { toggleTheme, isDark } = useTheme();
-  const [form, setForm] = useState({ email:'', password:'' });
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // ── Connexion ──
+  const [form, setForm] = useState({ email: location.state?.email || '', motDePasse:'' });
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  if (user) return <Navigate to="/" replace/>;
+  if (user) return <Navigate to={user.motDePasseTemporaire ? '/profil' : portailFor(user.roleName)} replace/>;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true); setError('');
     try {
-      await login(form.email, form.password);
-      toast.success('Bienvenue !');
+      const data = await login(form.email, form.motDePasse);
+      if (data?.user?.motDePasseTemporaire) {
+        toast('Mot de passe temporaire : changez-le dès maintenant dans votre profil.', { icon: '🔑', duration: 7000 });
+      } else {
+        toast.success('Bienvenue !');
+      }
     } catch (err) {
-       const message = err.response?.data?.message || 
-                    err.response?.data?.data?.message || 
+       const message = err.response?.data?.message ||
+                    err.response?.data?.data?.message ||
                     'Identifiants incorrects';
     setError(message);
     } finally {
@@ -32,120 +42,133 @@ export default function Login() {
     }
   };
 
-  const inputStyle = {
-    width:'100%', padding:'12px 14px 12px 44px',
-    border:'1px solid var(--border-default)', borderRadius:'var(--radius-md)',
-    fontSize:15, fontFamily:'var(--font-sans)', background:'var(--bg-muted)',
-    color:'var(--text-primary)', outline:'none', transition:'all var(--transition-fast)',
-  };
-
-  return (
-    <div style={{
-      minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center',
-      background:'var(--bg-base)', position:'relative', overflow:'hidden',
-    }}>
+return (
+    <div style={{ minHeight:'100vh', display:'flex', background:'var(--bg-base)' }}>
       <Toaster position="top-center"/>
-      {/* Background decoration */}
-      <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
-        <div style={{ position:'absolute', top:-200, right:-200, width:600, height:600, borderRadius:'50%', background:'var(--color-primary)', opacity:0.04 }}/>
-        <div style={{ position:'absolute', bottom:-100, left:-150, width:400, height:400, borderRadius:'50%', background:'var(--color-accent)', opacity:0.04 }}/>
-        <div style={{
-          position:'absolute', inset:0,
-          backgroundImage:'radial-gradient(circle at 1px 1px, var(--border-default) 1px, transparent 0)',
-          backgroundSize:'32px 32px', opacity:0.5,
-        }}/>
+      {/* Panneau gauche — branding */}
+      <div id="login-brand-panel" style={{
+        display:'none', flex:'1', position:'relative', overflow:'hidden',
+        background:'linear-gradient(135deg, #2563EB, #1D4ED8)',
+        color:'#fff', padding:48,
+      }}>
+        <div style={{ position:'absolute', inset:0, opacity:0.18, pointerEvents:'none' }}>
+          <div style={{ position:'absolute', top:'15%', left:'10%', width:320, height:320, borderRadius:'50%', background:'#14B8A6', filter:'blur(40px)' }} />
+          <div style={{ position:'absolute', bottom:'10%', right:'15%', width:280, height:280, borderRadius:'50%', background:'#fff', filter:'blur(60px)' }} />
+        </div>
+        <div style={{ position:'relative', zIndex:2, height:'100%', display:'flex', flexDirection:'column', justifyContent:'space-between' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{
+              width:44, height:44, borderRadius:'var(--radius-lg)',
+              background:'rgba(255,255,255,0.18)', backdropFilter:'blur(8px)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'var(--font-display)', fontWeight:800, fontSize:18,
+            }}>SG</div>
+            <div>
+              <p style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:20, margin:0 }}>SIRHGP</p>
+              <p style={{ fontSize:12, opacity:0.8, margin:0 }}>RH &amp; Gestion de Projets</p>
+            </div>
+          </div>
+          <div style={{ maxWidth:420 }}>
+            <h1 style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:36, lineHeight:1.2, marginBottom:16, marginTop:0 }}>
+              Gérez vos équipes et vos projets en toute fluidité.
+            </h1>
+            <p style={{ fontSize:17, opacity:0.9, lineHeight:1.6 }}>
+              La plateforme tout-en-un pour piloter vos ressources humaines, suivre vos projets et garder une trace de chaque action.
+            </p>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:14, marginTop:36 }}>
+              {[
+                { value:'14', label:'Modules' },
+                { value:'5', label:'Rôles' },
+                { value:'100%', label:'Traçable' },
+              ].map(s => (
+                <div key={s.label} style={{ borderRadius:'var(--radius-lg)', background:'rgba(255,255,255,0.1)', backdropFilter:'blur(8px)', padding:16 }}>
+                  <p style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:24, margin:0 }}>{s.value}</p>
+                  <p style={{ fontSize:12, opacity:0.85, marginTop:2 }}>{s.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+          <p style={{ fontSize:12, opacity:0.7, margin:0 }}>© {new Date().getFullYear()} SIRHGP. Tous droits réservés.</p>
+        </div>
       </div>
 
-      <div style={{ width:'100%', maxWidth:420, padding:'0 20px', position:'relative', animation:'slideUp 0.4s ease' }}>
-        {/* Card */}
-        <div style={{ background:'var(--bg-surface)', borderRadius:'var(--radius-xl)', boxShadow:'var(--shadow-xl)', padding:'40px', border:'1px solid var(--border-default)' }}>
-          {/* Logo */}
-          <div style={{ textAlign:'center', marginBottom:36 }}>
-            <div style={{
-              width:56, height:56, borderRadius:'var(--radius-lg)', background:'var(--color-primary)',
-              display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px',
-              boxShadow:'0 8px 24px rgba(37,99,235,0.35)',
-            }}>
-              <span style={{ fontFamily:'var(--font-display)', fontWeight:800, color:'#fff', fontSize:24 }}>S</span>
-            </div>
-            <h1 style={{ fontFamily:'var(--font-display)', fontSize:26, fontWeight:800, color:'var(--text-primary)', letterSpacing:'-0.5px', marginBottom:8 }}>
-              SIRHGP
-            </h1>
-            <p style={{ color:'var(--text-muted)', fontSize:14 }}>Système d'Information RH & Gestion de Projets</p>
-          </div>
-
-          <form onSubmit={handleSubmit}>
-            {/* Email */}
-            <div style={{ marginBottom:16 }}>
-              <label style={{ display:'block', fontSize:13, fontWeight:600, color:'var(--text-secondary)', marginBottom:6 }}>
-                Adresse email
-              </label>
-              <div style={{ position:'relative' }}>
-                <Mail size={16} style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)' }}/>
-                <input
-                  type="email" required value={form.email}
-                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                  placeholder="vous@sirhgp.cm"
-                  style={inputStyle}
-                  onFocus={e => { e.currentTarget.style.borderColor='var(--color-primary)'; e.currentTarget.style.background='var(--bg-surface)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor='var(--border-default)'; e.currentTarget.style.background='var(--bg-muted)'; }}
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div style={{ marginBottom:error?16:24 }}>
-              <label style={{ display:'block', fontSize:13, fontWeight:600, color:'var(--text-secondary)', marginBottom:6 }}>
-                Mot de passe
-              </label>
-              <div style={{ position:'relative' }}>
-                <Lock size={16} style={{ position:'absolute', left:14, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)' }}/>
-                <input
-                  type={showPwd?'text':'password'} required value={form.password}
-                  onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-                  placeholder="••••••••"
-                  style={{ ...inputStyle, paddingRight:46 }}
-                  onFocus={e => { e.currentTarget.style.borderColor='var(--color-primary)'; e.currentTarget.style.background='var(--bg-surface)'; }}
-                  onBlur={e => { e.currentTarget.style.borderColor='var(--border-default)'; e.currentTarget.style.background='var(--bg-muted)'; }}
-                />
-                <button type="button" onClick={() => setShowPwd(s=>!s)}
-                  style={{ position:'absolute', right:12, top:'50%', transform:'translateY(-50%)', border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:4 }}>
-                  {showPwd ? <EyeOff size={16}/> : <Eye size={16}/>}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div style={{ marginBottom:16, padding:'10px 14px', background:'var(--color-danger-light)', borderRadius:'var(--radius-md)', color:'var(--color-danger)', fontSize:13, display:'flex', alignItems:'center', gap:8, border:'1px solid rgba(239,68,68,0.2)' }}>
-                ⚠ {error}
-              </div>
-            )}
-
-            <button type="submit" disabled={loading}
-              style={{
-                width:'100%', padding:'13px', border:'none', borderRadius:'var(--radius-md)',
-                background:'var(--color-primary)', color:'#fff', fontSize:15, fontWeight:600,
-                cursor:loading?'not-allowed':'pointer', display:'flex', alignItems:'center',
-                justifyContent:'center', gap:10, opacity:loading?0.8:1,
-                boxShadow:'0 4px 14px rgba(37,99,235,0.4)', transition:'all var(--transition-fast)',
-              }}
-              onMouseEnter={e => { if (!loading) e.currentTarget.style.background='var(--color-primary-dark)'; }}
-              onMouseLeave={e => e.currentTarget.style.background='var(--color-primary)'}
-            >
-              {loading ? <><Loader2 size={18} style={{ animation:'spin 0.8s linear infinite' }}/> Connexion...</> : 'Se connecter'}
-            </button>
-          </form>
-
-          {/* Demo hint */}
-          <div style={{ marginTop:20, padding:'10px 14px', background:'var(--bg-muted)', borderRadius:'var(--radius-md)', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
-            <strong>Démo :</strong> superadmin@sirhgp.cm / SuperAdmin123!
-          </div>
+      {/* Panneau droit — formulaire */}
+      <div style={{ flex:1, display:'flex', flexDirection:'column', position:'relative' }}>
+        <div style={{ position:'absolute', inset:0, overflow:'hidden', pointerEvents:'none' }}>
+          <div style={{ position:'absolute', top:-200, right:-200, width:600, height:600, borderRadius:'50%', background:'var(--color-primary)', opacity:0.05 }} />
+          <div style={{ position:'absolute', bottom:-100, left:-150, width:400, height:400, borderRadius:'50%', background:'var(--color-accent)', opacity:0.05 }} />
+          <div style={{
+            position:'absolute', inset:0,
+            backgroundImage:'radial-gradient(circle at 1px 1px, var(--border-default) 1px, transparent 0)',
+            backgroundSize:'32px 32px', opacity:0.4,
+          }}/>
         </div>
 
-        <div style={{ textAlign:'center', marginTop:20 }}>
-          <button onClick={toggleTheme} style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13 }}>
-            {isDark ? '☀ Mode clair' : '🌙 Mode sombre'}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:20, position:'relative' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <div style={{
+              width:38, height:38, borderRadius:'var(--radius-md)',
+              background:'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'var(--font-display)', fontWeight:800, color:'#fff', fontSize:14,
+            }}>SG</div>
+            <span style={{ fontFamily:'var(--font-display)', fontWeight:800, fontSize:16, color:'var(--text-primary)' }}>SIRHGP</span>
+          </div>
+          <button onClick={toggleTheme} title="Changer le thème" style={{ border:'none', background:'var(--bg-surface)', cursor:'pointer', color:'var(--text-muted)', padding:9, borderRadius:'var(--radius-md)', display:'flex', boxShadow:'var(--shadow-soft)' }}>
+            {isDark ? <Sun size={18}/> : <Moon size={18}/>}
           </button>
+        </div>
+
+        <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px', position:'relative' }}>
+          <div style={{ width:'100%', maxWidth:420, background:'var(--bg-surface)', borderRadius:'var(--radius-2xl)', boxShadow:'var(--shadow-elevated)', padding:40, border:'1px solid var(--border-default)', animation:'slideUp 0.4s ease' }}>
+            <h2 style={{ fontFamily:'var(--font-display)', fontSize:24, fontWeight:800, color:'var(--text-primary)', marginBottom:8, letterSpacing:'-0.5px' }}>Connexion</h2>
+                <p style={{ color:'var(--text-muted)', fontSize:14, marginBottom:24 }}>Entrez vos identifiants pour vous connecter.</p>
+
+            <form onSubmit={handleSubmit} style={{ display:'flex', flexDirection:'column', gap:18 }}>
+              <Input
+                label="Adresse email"
+                type="email"
+                required
+                leftIcon={<Mail size={16}/>}
+                value={form.email}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="vous@sirhgp.com"
+              />
+
+              <Input
+                label="Mot de passe"
+                type={showPwd ? 'text' : 'password'}
+                required
+                leftIcon={<Lock size={16}/>}
+                rightIcon={
+                  <button type="button" onClick={() => setShowPwd(s => !s)}
+                    style={{ border:'none', background:'none', cursor:'pointer', color:'var(--text-muted)', padding:0, display:'flex' }}>
+                    {showPwd ? <EyeOff size={16}/> : <Eye size={16}/>}
+                  </button>
+                }
+                value={form.motDePasse}
+                onChange={e => setForm(f => ({ ...f, motDePasse: e.target.value }))}
+                placeholder="••••••••"
+              />
+
+              {error && <Alert variant="danger">{error}</Alert>}
+
+              <Button type="submit" disabled={loading} loading={loading} style={{ width:'100%', padding:'13px', fontSize:15 }}>
+                {loading ? 'Connexion...' : <>Se connecter <ArrowRight size={18}/></>}
+              </Button>
+            </form>
+
+                <div style={{ margin:'24px 0', display:'flex', alignItems:'center', gap:12 }}>
+                  <div style={{ flex:1, height:1, background:'var(--border-default)' }} />
+                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>ou</span>
+                  <div style={{ flex:1, height:1, background:'var(--border-default)' }} />
+                </div>
+
+                <Button type="button" onClick={() => navigate('/register')} variant="secondary"
+                  style={{ width:'100%', padding:'12px' }} leftIcon={<UserPlus size={16}/>}>
+                  Créer une nouvelle entreprise
+                </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { Menu, Sun, Moon, Settings, LogOut, User } from 'lucide-react';
-import { useTheme } from '../../contexts/Themecontext';
+import { useTheme } from '../../contexts/useTheme';
 import { useAuth } from '../../contexts/Authcontext';
 import NotificationBell from '../NotificationBell';
 import { Avatar } from '../ui';

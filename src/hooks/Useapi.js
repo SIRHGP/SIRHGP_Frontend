@@ -1,5 +1,6 @@
 // hooks/useApi.js
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useDeferredTask } from './useDeferredTask';
 
 // ── useApi : fetch standard ──────────────────────────────────────────────────
 export function useApi(apiFn, deps = [], immediate = true) {
@@ -89,8 +90,6 @@ export function useRoleData({ user, adminFn, managerFn, selfFn, params = {} }) {
 
   const load = useCallback(async () => {
     if (!user) return;
-    setLoading(true);
-    setError(null);
     try {
       let res;
       const role = user.roleName;
@@ -110,6 +109,7 @@ export function useRoleData({ user, adminFn, managerFn, selfFn, params = {} }) {
         const d = res.data?.data !== undefined ? res.data.data : res.data;
         setData(Array.isArray(d) ? d : d?.content || []);
       }
+      setError(null);
     } catch (err) {
       setError(err.response?.data?.message || err.message || 'Erreur');
     } finally {
@@ -117,7 +117,7 @@ export function useRoleData({ user, adminFn, managerFn, selfFn, params = {} }) {
     }
   }, [user?.id, user?.roleName, JSON.stringify(params)]); // eslint-disable-line
 
-  useEffect(() => { load(); }, [load]);
+  useDeferredTask(load, `${user?.id || ''}:${user?.roleName || ''}:${JSON.stringify(params)}`);
 
   return { data, loading, error, refetch: load };
 }

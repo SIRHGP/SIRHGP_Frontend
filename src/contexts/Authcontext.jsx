@@ -1,47 +1,57 @@
-// contexts/Authcontext.jsx — version corrigée
-
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext, useState, useEffect } from 'react';
+import api, { authApi } from '../Api';
 
 const AuthContext = createContext(null);
-const API_URL = 'http://localhost:8080/api';
 
-const ROLE_HIERARCHY = ['STAGIAIRE', 'STAFF', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'];
+const ROLE_HIERARCHY = ['STAGIAIRE', 'SECRETAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'];
 
 const setAuthToken = (token) => {
   if (token) {
-    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
     localStorage.setItem('sirhgp-token', token);
   } else {
-    delete axios.defaults.headers.common['Authorization'];
+    delete api.defaults.headers.common['Authorization'];
     localStorage.removeItem('sirhgp-token');
   }
 };
 
 export function AuthProvider({ children }) {
-  const [user, setUser]   = useState(null);
+  const [user, setUser] = useState(null);
   const [token, setToken] = useState(() => localStorage.getItem('sirhgp-token'));
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(localStorage.getItem('sirhgp-token')));
 
-  useEffect(() => { setAuthToken(token); }, [token]);
-
-  const loadProfile = useCallback(async () => {
-    if (!token) { setLoading(false); return; }
-    try {
-      const res = await axios.get(`${API_URL}/auth/profile`);
-      setUser(res.data?.data || res.data);
-    } catch {
-      setToken(null);
-      setUser(null);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    setAuthToken(token);
   }, [token]);
 
-  useEffect(() => { loadProfile(); }, []);
+  useEffect(() => {
+    if (!token) return;
 
-  const login = async (email, motDePasse) => {
-    const res  = await axios.post(`${API_URL}/auth/login`, { email, password: motDePasse });
+    let active = true;
+    const refreshProfile = async () => {
+      try {
+        const res = await authApi.profile();
+        if (!active) return;
+        setUser(res.data?.data || res.data);
+      } catch (error) {
+        if (!active) return;
+        setToken(null);
+        setUser(null);
+        void error;
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void refreshProfile();
+    return () => {
+      active = false;
+    };
+  }, [token]);
+
+  const login = async (email, motDePasse, entrepriseId) => {
+    const res = await authApi.login({ email, motDePasse, entrepriseId: entrepriseId ?? null });
     const data = res.data?.data || res.data;
     if (!data.token) throw new Error('Token manquant');
     setToken(data.token);
@@ -51,34 +61,39 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    try { await axios.post(`${API_URL}/auth/logout`); } catch {}
+    try {
+      await authApi.logout();
+    } catch {
+      // session déjà invalide
+    }
     setToken(null);
     setUser(null);
     setAuthToken(null);
+    setLoading(false);
   };
 
-  // Niveau numérique du rôle (0 = STAGIAIRE … 4 = SUPER_ADMIN)
   const roleLevel = ROLE_HIERARCHY.indexOf(user?.roleName ?? '');
+  const hasMinRole = (minRole) => roleLevel >= ROLE_HIERARCHY.indexOf(minRole);
 
-  // Vérifie si l'utilisateur a au moins le niveau `minRole`
-  const hasMinRole = (minRole) =>
-    roleLevel >= ROLE_HIERARCHY.indexOf(minRole);
-
-  // Vérifie une permission fine (renvoyée par le backend dans user.permissions)
   const hasPermission = (perm) => {
     if (!user) return false;
     if (user.roleName === 'SUPER_ADMIN') return true;
     return user.permissions?.includes(perm) ?? false;
   };
 
-  // Rétrocompatibilité
   const isAdmin = () => hasMinRole('ADMIN');
 
   return (
     <AuthContext.Provider value={{
-      user, token, loading,
-      login, logout, setUser,
-      hasPermission, hasMinRole, isAdmin,
+      user,
+      token,
+      loading,
+      login,
+      logout,
+      setUser,
+      hasPermission,
+      hasMinRole,
+      isAdmin,
       roleLevel,
     }}>
       {children}

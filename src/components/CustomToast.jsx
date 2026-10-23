@@ -1,24 +1,11 @@
 // components/CustomToast.jsx
+// Toast personnalise : icone unique = cloche Lucide neutre (aucun emoji, aucune icone par type).
 import { toast } from 'react-hot-toast';
-import { CheckCircle, AlertCircle, Info, XCircle } from 'lucide-react';
+import { Bell } from 'lucide-react';
+
+const NEUTRAL = '#64748B';
 
 export const showToast = (type, message, options = {}) => {
-  const icons = {
-    success: CheckCircle,
-    error: XCircle,
-    warning: AlertCircle,
-    info: Info,
-  };
-
-  const colors = {
-    success: '#10B981',
-    error: '#EF4444',
-    warning: '#F59E0B',
-    info: '#3B82F6',
-  };
-
-  const Icon = icons[type] || Info;
-
   return toast.custom((t) => (
     <div
       style={{
@@ -30,13 +17,13 @@ export const showToast = (type, message, options = {}) => {
         padding: '12px 16px',
         borderRadius: 'var(--radius-lg)',
         boxShadow: 'var(--shadow-lg)',
-        borderLeft: `4px solid ${colors[type]}`,
+        borderLeft: `4px solid ${NEUTRAL}`,
         minWidth: 300,
         maxWidth: 400,
       }}
     >
-      <div style={{ color: colors[type] }}>
-        <Icon size={18} />
+      <div style={{ color: NEUTRAL }}>
+        <Bell size={18} />
       </div>
       <div style={{ flex: 1 }}>
         <p style={{ fontWeight: 600, margin: 0 }}>{message}</p>

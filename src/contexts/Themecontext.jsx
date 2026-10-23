@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState } from 'react';
-const ThemeContext = createContext(null);
+import { useEffect, useState } from 'react';
+import { ThemeContext } from './themeContextValue';
 export function ThemeProvider({ children }) {
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('sirhgp-theme');
@@ -17,8 +17,3 @@ export function ThemeProvider({ children }) {
     </ThemeContext.Provider>
   );
 }
-export const useTheme = () => {
-  const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error('useTheme must be used within ThemeProvider');
-  return ctx;
-};

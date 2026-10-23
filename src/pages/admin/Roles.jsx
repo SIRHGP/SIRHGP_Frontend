@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Shield, Zap } from 'lucide-react';
-import { roleApi, permissionApi } from '../../api';
-import { PageHeader, Card, Table, Badge, Button, Modal, Input, Confirm, SearchInput, Textarea } from '../../components/ui';
+import { SquarePlus, Pencil, Trash2, Shield, Zap } from 'lucide-react';
+import { roleApi, permissionApi } from '../../Api';
+import { PageHeader, Card, Table, Badge, Button, Modal, Input, Confirm, SearchInput, StatsGrid, StatCard, IconBox, Flex } from '../../components/ui';
+import { useAuth } from '../../contexts/Authcontext';
 import toast from 'react-hot-toast';
 
 const EMPTY = { name:'', description:'', permissionIds:[] };
 
 export default function Roles() {
+  const { user } = useAuth();
+  const canManage = user?.roleName === 'SUPER_ADMIN';
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -28,6 +31,7 @@ export default function Roles() {
     finally { setLoading(false); }
   };
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch au montage ; `loading` démarre à true et les rechargements manuels réactivent le spinner
   useEffect(() => { load(); }, []);
   useEffect(() => {
     permissionApi.getAll({size:200}).then(r => {
@@ -67,52 +71,60 @@ export default function Roles() {
 
   const columns = [
     { key:'name', label:'Rôle', render:(v,row) => (
-      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={{ width:34, height:34, borderRadius:'var(--radius-md)', background:'var(--color-info-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Shield size={16} style={{ color:'var(--color-info)' }}/>
-        </div>
+      <Flex align="center" gap={10}>
+        <IconBox icon={<Shield size={16}/>} color="var(--color-info)" />
         <div>
           <p style={{ fontWeight:700, fontSize:14 }}>{v}</p>
           {row.description && <p style={{ fontSize:11, color:'var(--text-muted)' }}>{row.description}</p>}
+          {row.systematique && <Badge size="sm" variant="warning" style={{ marginTop:4 }}>Système verrouillé</Badge>}
         </div>
-      </div>
+      </Flex>
     )},
     { key:'permissions', label:'Permissions', render:v => (
-      <div style={{ display:'flex', gap:4, flexWrap:'wrap', maxWidth:400 }}>
+      <Flex gap={4} wrap style={{ maxWidth:400 }}>
         {(v||[]).slice(0,4).map(p => <Badge key={p.id} size="sm" variant="info">{p.name}</Badge>)}
         {(v||[]).length > 4 && <Badge size="sm" variant="default">+{(v||[]).length-4}</Badge>}
         {(v||[]).length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Aucune</span>}
-      </div>
+      </Flex>
     )},
     { key:'id', label:'', align:'right', render:(v,row) => (
-      <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
-        <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();openEdit(row);}}><Pencil size={14}/></Button>
-        <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();setDeleteItem(row);}} style={{ color:'var(--color-danger)' }}><Trash2 size={14}/></Button>
-      </div>
+      canManage ? (
+      <Flex gap={6} justify="flex-end">
+        <Button variant="ghost" size="sm" disabled={!!row.systematique} title={row.systematique ? 'Rôle système verrouillé (5.9)' : 'Modifier'} onClick={e=>{e.stopPropagation();openEdit(row);}}><Pencil size={14}/></Button>
+        <Button variant="ghost" size="sm" disabled={!!row.systematique} title={row.systematique ? 'Rôle système verrouillé (5.9)' : 'Supprimer'} onClick={e=>{e.stopPropagation();setDeleteItem(row);}} style={{ color:'var(--color-danger)' }}><Trash2 size={14}/></Button>
+      </Flex>
+      ) : <span style={{ fontSize:12, color:'var(--text-muted)' }}>lecture seule</span>
     )},
   ];
 
   return (
     <div>
       <PageHeader title="Rôles" subtitle="Gestion des rôles et accès">
-        <Button onClick={openCreate}><Plus size={16}/>Nouveau rôle</Button>
+        {canManage && <Button onClick={openCreate}><SquarePlus size={16}/>Nouveau rôle</Button>}
       </PageHeader>
 
+      {/* Statistiques */}
+      <StatsGrid cols={3}>
+        <StatCard title="Total rôles" value={loading ? '—' : data.length} icon={<Shield size={22} />} color="var(--color-primary)" loading={loading} />
+        <StatCard title="Permissions disponibles" value={permissions.length} icon={<Zap size={22} />} color="var(--color-success)" />
+        <StatCard title="Permissions moyennes / rôle" value={Math.round(data.reduce((acc,r) => acc + (r.permissions?.length || 0), 0) / (data.length || 1))} icon={<Zap size={22} />} color="var(--color-warning)" loading={loading} />
+      </StatsGrid>
+
       <Card padding={0}>
-        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-default)', display:'flex', gap:12, alignItems:'center' }}>
+        <Flex style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-default)' }} gap={12} align="center">
           <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un rôle..." style={{ flex:1, maxWidth:360 }}/>
-        </div>
+        </Flex>
         <Table columns={columns} data={filtered} loading={loading} emptyText="Aucun rôle"/>
       </Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Modifier le rôle' : 'Nouveau rôle'} width={600}
-        footer={<div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+        footer={<Flex justify="flex-end" gap={10}>
           <Button variant="secondary" onClick={() => setModalOpen(false)}>Annuler</Button>
           <Button onClick={handleSave} loading={saving}>{editItem ? 'Enregistrer' : 'Créer'}</Button>
-        </div>}
+        </Flex>}
       >
         <form onSubmit={handleSave}>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <Flex direction="column" gap={14}>
             <Input label="Nom du rôle *" value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} required placeholder="ex: CHEF_PROJET"/>
             <Input label="Description" value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Description du rôle"/>
             {permissions.length > 0 && (
@@ -134,7 +146,7 @@ export default function Roles() {
                 </div>
               </div>
             )}
-          </div>
+          </Flex>
         </form>
       </Modal>
 

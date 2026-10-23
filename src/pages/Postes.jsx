@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Briefcase, Building2 } from 'lucide-react';
-import { posteApi, departementApi, roleApi, permissionApi } from '../api';
-import { PageHeader, Card, Table, Badge, Button, Modal, Input, Select, Confirm, SearchInput, FormRow } from '../components/ui';
+import { useDeferredTask } from '../hooks/useDeferredTask';
+import { SquarePlus, Pencil, Trash2, Briefcase, Building2, Users } from 'lucide-react';
+import { posteApi, departementApi } from '../Api';
+import { PageHeader, Card, Table, Badge, Button, Modal, Input, Select, Confirm, SearchInput, FormRow, StatsGrid, StatCard, IconBox, Flex } from '../components/ui';
 import toast from 'react-hot-toast';
 
-const EMPTY = { name:'', description:'', roleId:'', departementId:'' };
+const EMPTY = { name:'', description:'', departementId:'' };
 
 export default function Postes() {
   const [data, setData] = useState([]);
@@ -16,11 +17,9 @@ export default function Postes() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [departements, setDepartements] = useState([]);
-  const [roles, setRoles] = useState([]);
+          const [departements, setDepartements] = useState([]);
 
   const load = async () => {
-    setLoading(true);
     try {
       const res = await posteApi.getAll({ page:0, size:100 });
       const d = res.data?.data || res.data;
@@ -29,11 +28,10 @@ export default function Postes() {
     finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useDeferredTask(load, 'mount');
   useEffect(() => {
-    Promise.all([departementApi.getAll({size:100}), roleApi.getAll({size:100})]).then(([d,r]) => {
+    departementApi.getAll({size:100}).then(d => {
       const dd=d.data?.data||d.data; setDepartements(Array.isArray(dd)?dd:dd?.content||[]);
-      const rd=r.data?.data||r.data; setRoles(Array.isArray(rd)?rd:rd?.content||[]);
     }).catch(()=>{});
   }, []);
 
@@ -42,14 +40,14 @@ export default function Postes() {
   const openCreate = () => { setForm(EMPTY); setEditItem(null); setModalOpen(true); };
   const openEdit = (item) => {
     setEditItem(item);
-    setForm({ name:item.name||'', description:item.description||'', roleId:item.roleId||'', departementId:item.departementId||'' });
+        setForm({ name:item.name||'', description:item.description||'', departementId:item.departementId||'' });
     setModalOpen(true);
   };
 
   const handleSave = async (e) => {
     e.preventDefault(); setSaving(true);
     try {
-      const payload = { ...form, roleId:form.roleId||null, departementId:form.departementId||null };
+            const payload = { ...form, departementId:form.departementId||null };
       if (editItem) await posteApi.update(editItem.id, payload);
       else await posteApi.create(payload);
       toast.success(editItem ? 'Poste modifié' : 'Poste créé');
@@ -68,56 +66,60 @@ export default function Postes() {
 
   const columns = [
     { key:'name', label:'Poste', render:(v,row) => (
-      <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-        <div style={{ width:36, height:36, borderRadius:'var(--radius-md)', background:'var(--color-info-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Briefcase size={16} style={{ color:'var(--color-info)' }}/>
-        </div>
+      <Flex align="center" gap={12}>
+        <IconBox icon={<Briefcase size={16}/>} color="var(--color-info)" />
         <div>
           <p style={{ fontWeight:600, fontSize:14 }}>{v}</p>
           {row.description && <p style={{ fontSize:11, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{row.description}</p>}
         </div>
-      </div>
+      </Flex>
     )},
-    { key:'departementName', label:'Département', render:v => v ? <span style={{ display:'flex', alignItems:'center', gap:6 }}><Building2 size={12} style={{ color:'var(--text-muted)' }}/>{v}</span> : '—' },
-    { key:'roleName', label:'Rôle associé', render:v => v ? <Badge variant="info" size="sm">{v}</Badge> : '—' },
-    { key:'nombrePermissions', label:'Permissions', render:v => v !== undefined ? <Badge variant="default" size="sm">{v}</Badge> : '—' },
+        { key:'departementName', label:'Département', render:v => v ? <Flex align="center" gap={6}><Building2 size={12} style={{ color:'var(--text-muted)' }}/>{v}</Flex> : '—' },
+        { key:'nombreEmployes', label:'Employés', render:v => <Badge variant="info" size="sm"><Users size={10}/>&nbsp;{v??0}</Badge> },
     { key:'id', label:'', align:'right', render:(v,row) => (
-      <div style={{ display:'flex', gap:6, justifyContent:'flex-end' }}>
+      <Flex gap={6} justify="flex-end">
         <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();openEdit(row);}}><Pencil size={14}/></Button>
         <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();setDeleteItem(row);}} style={{ color:'var(--color-danger)' }}><Trash2 size={14}/></Button>
-      </div>
+      </Flex>
     )},
   ];
 
   return (
     <div>
       <PageHeader title="Postes" subtitle={`${data.length} poste${data.length!==1?'s':''}`}>
-        <Button onClick={openCreate}><Plus size={16}/>Nouveau poste</Button>
+        <Button onClick={openCreate}><SquarePlus size={16}/>Nouveau poste</Button>
       </PageHeader>
 
+      {/* Statistiques */}
+      <StatsGrid cols={3}>
+        <StatCard title="Total postes" value={loading ? '—' : data.length} icon={<Briefcase size={22} />} color="var(--color-primary)" loading={loading} />
+        <StatCard title="Employés affectés" value={loading ? '—' : data.reduce((acc,p) => acc + (p.nombreEmployes ?? 0), 0)} icon={<Users size={22} />} color="var(--color-success)" loading={loading} subtitle="Tous postes confondus" />
+        <StatCard title="Départements couverts" value={loading ? '—' : new Set(data.filter(p => p.departementName).map(p => p.departementName)).size} icon={<Building2 size={22} />} color="var(--color-info)" loading={loading} subtitle="Postes rattachés" />
+      </StatsGrid>
+    
+
       <Card padding={0}>
-        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-default)', display:'flex', gap:12, alignItems:'center' }}>
+        <Flex style={{ padding:'16px 20px', borderBottom:'1px solid var(--border-default)' }} gap={12} align="center">
           <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un poste..." style={{ flex:1, maxWidth:360 }}/>
           <span style={{ fontSize:13, color:'var(--text-muted)' }}>{filtered.length} résultat{filtered.length!==1?'s':''}</span>
-        </div>
+        </Flex>
         <Table columns={columns} data={filtered} loading={loading} emptyText="Aucun poste trouvé"/>
       </Card>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editItem ? 'Modifier le poste' : 'Nouveau poste'} width={520}
-        footer={<div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+        footer={<Flex justify="flex-end" gap={10}>
           <Button variant="secondary" onClick={() => setModalOpen(false)}>Annuler</Button>
           <Button onClick={handleSave} loading={saving}>{editItem ? 'Enregistrer' : 'Créer'}</Button>
-        </div>}
+        </Flex>}
       >
         <form onSubmit={handleSave}>
-          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <Flex direction="column" gap={14}>
             <Input label="Nom du poste *" value={form.name} onChange={set('name')} required placeholder="ex: Data Analyst"/>
             <Input label="Description" value={form.description} onChange={set('description')} placeholder="Description du poste"/>
             <FormRow>
               <Select label="Département" value={form.departementId} onChange={set('departementId')} options={departements.map(d=>({value:d.id,label:d.name}))} placeholder="Sélectionner..."/>
-              <Select label="Rôle par défaut" value={form.roleId} onChange={set('roleId')} options={roles.map(r=>({value:r.id,label:r.name}))} placeholder="Sélectionner..."/>
             </FormRow>
-          </div>
+          </Flex>
         </form>
       </Modal>
 
@@ -127,3 +129,5 @@ export default function Postes() {
     </div>
   );
 }
+
+

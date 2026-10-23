@@ -5,9 +5,12 @@ import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Users, FolderKanban, CheckSquare, FileText,
   Calendar, File, Settings, ChevronLeft, ChevronRight,
-  Shield, Building2, Briefcase, Zap, LogOut, ChevronDown, X
+  Shield, Building2, Briefcase, Zap, LogOut, ChevronDown, X, Activity,
+  Bot, Sparkles, Network, UserPlus, Clock, ClipboardList, CalendarRange,
+  MapPin, Globe
 } from 'lucide-react';
 import { useAuth } from '../../contexts/Authcontext';
+import { useAssistant } from '../../contexts/AssistantContext';
 import { Avatar } from '../../components/ui/index';
 
 // RÈGLES D'ACCÈS PAR RÔLE
@@ -16,60 +19,80 @@ import { Avatar } from '../../components/ui/index';
 //   minRole   → niveau minimum (SUPER_ADMIN > ADMIN > MANAGER > STAFF > STAGIAIRE)
 //   Les enfants héritent des règles du parent (si le parent est caché, les enfants aussi)
 
-const ROLE_HIERARCHY = ['STAGIAIRE', 'STAFF', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'];
+const ROLE_HIERARCHY = ['STAGIAIRE', 'SECRETAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'];
 
 const MENU = [
   {
     label: 'Tableau de bord',
     icon: LayoutDashboard,
-    path: '/',
-    // Tout le monde a accès
+    path: '/dashboard',
+    roles: ['ADMIN', 'MANAGER', 'LEAD'],
   },
   {
     label: 'Ressources humaines',
     icon: Users,
-    // ADMIN+ voit tout, MANAGER voit seulement "Employés" (de son dept, géré côté API)
-    minRole: 'MANAGER',
+    roles: ['ADMIN', 'MANAGER', 'LEAD', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // les enfants non autorisés restent filtrés par leur propre `roles`
     children: [
       {
         label: 'Employés',
         icon: Users,
         path: '/employes',
-        minRole: 'MANAGER', // MANAGER voit les employés de son dept (filtrage API)
+        roles: ['ADMIN', 'MANAGER', 'LEAD', 'SECRETAIRE'], // secrétaire : liste de présence de sa succursale
       },
       {
-        label: 'Départements',
+        label: 'Structure',
         icon: Building2,
         path: '/departements',
-        minRole: 'ADMIN', // MANAGER n'a pas accès
+        roles: ['ADMIN', 'MANAGER', 'LEAD'],
       },
       {
-        label: 'Postes',
-        icon: Briefcase,
-        path: '/postes',
-        minRole: 'ADMIN', // MANAGER n'a pas accès
+        label: 'Paie',
+        icon: FileText,
+        path: '/paie',
+        roles: ['ADMIN', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // accès aux bulletins personnels en lecture seule
+      },
+      {
+        label: 'Recrutement',
+        icon: UserPlus,
+        path: '/recrutement',
+        roles: ['ADMIN', 'MANAGER', 'LEAD'],
+      },
+      {
+        label: 'Timesheet',
+        icon: Clock,
+        path: '/timesheet',
+        roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
+      },
+      {
+        label: 'Évaluations',
+        icon: ClipboardList,
+        path: '/evaluations',
+        roles: ['LEAD', 'MANAGER', 'ADMIN'],
       },
     ]
   },
   {
     label: 'Gestion de projets',
     icon: FolderKanban,
-    // Tous les rôles sauf STAGIAIRE voient le menu
-    // Le filtrage du contenu (ses projets vs tous) est géré côté API
-    minRole: 'STAFF',
+    roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
     children: [
       {
         label: 'Projets',
         icon: FolderKanban,
         path: '/projets',
-        minRole: 'STAFF',
+        roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
       },
       {
         label: 'Tâches',
         icon: CheckSquare,
         path: '/taches',
-        // STAGIAIRE voit aussi ses tâches
-        // pas de minRole → tout le monde
+        roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
+      },
+      {
+        label: 'Gantt',
+        icon: CalendarRange,
+        path: '/gantt',
+        roles: ['STAFF', 'MANAGER', 'ADMIN'],
       },
     ]
   },
@@ -77,36 +100,38 @@ const MENU = [
     label: 'Factures',
     icon: FileText,
     path: '/factures',
-    // STAFF voit ses factures, MANAGER voit celles de son dept, ADMIN/SUPER_ADMIN voit tout
-    // Le filtrage est côté API selon le rôle
-    // STAGIAIRE ne voit que ses factures propres → on lui montre quand même le menu
+    roles: ['MANAGER', 'ADMIN'],
   },
   {
     label: 'Événements',
     icon: Calendar,
     path: '/evenements',
-    // Tout le monde : STAFF/STAGIAIRE voient les événements publics (filtrage API)
+    roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
   },
   {
     label: 'Documents',
     icon: File,
     path: '/documents',
-    // Tout le monde a accès
+    roles: ['STAGIAIRE', 'STAFF', 'LEAD', 'MANAGER', 'ADMIN', 'SECRETAIRE'],
   },
   {
     label: 'Administration',
     icon: Shield,
-    roles: ['SUPER_ADMIN'], // UNIQUEMENT le super admin
+    roles: ['SUPER_ADMIN', 'ADMIN'],
     children: [
-      { label: 'Rôles', icon: Shield, path: '/admin/roles' },
-      { label: 'Permissions', icon: Zap, path: '/admin/permissions' },
-      { label: 'Actions', icon: Settings, path: '/admin/actions' },
+      { label: 'Entreprises', icon: Building2, path: '/admin/entreprises', roles: ['SUPER_ADMIN'] },
+      { label: 'Plateforme', icon: Sparkles, path: '/admin/plateforme', roles: ['SUPER_ADMIN'] },
+      { label: 'Rôles', icon: Shield, path: '/admin/roles', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Permissions', icon: Zap, path: '/admin/permissions', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Actions', icon: Settings, path: '/admin/actions', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Audit & Traçabilité', icon: Activity, path: '/admin/audit', roles: ['SUPER_ADMIN', 'ADMIN'] },
     ]
   },
 ];
 
 export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose }) {
   const { user, logout } = useAuth();
+  const { toggleAssistant } = useAssistant();
   const location = useLocation();
   const [openGroups, setOpenGroups] = useState({});
 
@@ -318,11 +343,35 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
   // ── Badge rôle coloré dans le footer ────────────────────────────────────
   const ROLE_COLORS = {
     SUPER_ADMIN: '#8B5CF6',
+    SECRETAIRE: '#EC4899',
     ADMIN: '#2563EB',
     MANAGER: '#10B981',
     STAFF: '#F59E0B',
     STAGIAIRE: '#6B7280',
   };
+
+  // ── Badge de périmètre (hiérarchie entreprise → succursale → département) ─
+  // ADMIN voit son entreprise, MANAGER sa succursale, LEAD son département,
+  // SUPER_ADMIN la plateforme entière. Champs portés par user (login/profile).
+  const scopeInfo = (() => {
+    if (!user) return null;
+    const iconStyle = { color: 'var(--color-primary-light, #93C5FD)', flexShrink: 0 };
+    const role = user.roleName;
+    if (role === 'SUPER_ADMIN') {
+      return { label: 'Périmètre', value: user.entrepriseNom || 'Toutes les entreprises', icon: <Globe size={15} style={iconStyle} /> };
+    }
+    if (role === 'MANAGER') {
+      return { label: 'Succursale', value: user.sucursalName || user.entrepriseNom, icon: <MapPin size={15} style={iconStyle} /> };
+    }
+    if (role === 'LEAD') {
+      return {
+        label: 'Département',
+        value: user.departementNom || user.departementName || user.sucursalName || user.entrepriseNom,
+        icon: <Briefcase size={15} style={iconStyle} />,
+      };
+    }
+    return { label: 'Entreprise', value: user.entrepriseNom, icon: <Building2 size={15} style={iconStyle} /> };
+  })();
 
   const content = (
     <div style={sidebarStyle}>
@@ -387,6 +436,46 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         </button>
       </div>
 
+      {/* ── Badge de périmètre de l'utilisateur connecté ── */}
+      {scopeInfo?.value && (
+        collapsed ? (
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <div
+              title={`${scopeInfo.label} : ${scopeInfo.value}`}
+              style={{
+                width: 30, height: 30,
+                borderRadius: 'var(--radius-md)',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              {scopeInfo.icon}
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            margin: '0 12px 12px', padding: '7px 10px',
+            borderRadius: 'var(--radius-md)',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            {scopeInfo.icon}
+            <div style={{ minWidth: 0 }}>
+              <p style={{
+                fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                letterSpacing: '0.08em', color: 'var(--text-sidebar)', opacity: 0.5,
+              }}>{scopeInfo.label}</p>
+              <p style={{
+                fontSize: 12, fontWeight: 600, color: '#fff',
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>{scopeInfo.value}</p>
+            </div>
+          </div>
+        )
+      )}
+
       {/* ── Navigation ── */}
       <nav style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '0 0 16px' }}>
         {!collapsed && (
@@ -402,6 +491,44 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
         )}
         {MENU.map(renderItem)}
       </nav>
+
+      {/* ── Assistant SIRHGP (remplace l'ancien bloc d'aide statique) ── */}
+      {!collapsed && (
+        <div style={{ padding: '0 12px 12px', flexShrink: 0 }}>
+          <div style={{
+            borderRadius: 'var(--radius-lg)',
+            background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
+            padding: 16, color: '#fff',
+            boxShadow: 'var(--shadow-soft)',
+          }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <Bot size={18} />
+              <p style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:14, margin:0 }}>
+                Assistant SIRHGP
+              </p>
+            </div>
+            <p style={{ fontSize:12, opacity:0.85, lineHeight:1.5, margin:'6px 0 12px' }}>
+              Créez, recherchez et pilotez la plateforme en langage naturel.
+            </p>
+            <button
+              onClick={toggleAssistant}
+              style={{
+                width: '100%', border: 'none', cursor: 'pointer',
+                background: 'rgba(255,255,255,0.16)',
+                color: '#fff', padding: '9px 0', borderRadius: 'var(--radius-md)',
+                fontSize: 12, fontWeight: 600, fontFamily: 'var(--font-sans)',
+                backdropFilter: 'blur(4px)', transition: 'background var(--transition-fast)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.26)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.16)'}
+            >
+              <Sparkles size={13} />
+              Ouvrir l’assistant
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Footer utilisateur ── */}
       <div style={{
@@ -438,7 +565,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onMobileClose
                 color: ROLE_COLORS[user?.roleName] || '#6B7280',
                 letterSpacing: '0.04em',
               }}>
-                {user?.roleName}
+                {user?.roleName === 'SECRETAIRE' ? 'Secrétaire' : user?.roleName}
               </span>
             </div>
             <button

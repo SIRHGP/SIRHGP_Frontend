@@ -1,368 +1,97 @@
 // pages/Taches.jsx
 import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, LayoutGrid, List, Flag, User, Calendar, AlertCircle } from 'lucide-react';
-import { tacheApi, projetApi, employerApi } from '../api';
-import { PageHeader, Card, Badge, Button, Modal, Input, Select, Confirm, SearchInput, Avatar, FormRow, Textarea } from '../components/ui';
+import { useDeferredTask } from '../hooks/useDeferredTask';
+import { 
+  SquarePlus, LayoutGrid, List, AlertCircle
+} from 'lucide-react';
+import { tacheApi, projetApi, employerApi, secretariatApi, fetchAllPages } from '../Api';
+import { PageHeader, Card, Button, Modal, Input, Select, Confirm, SearchInput, FormRow, Textarea, StatsGrid, StatCard, Tabs, Flex, Empty, Alert, SucursaleField } from '../components/ui';
 import toast from 'react-hot-toast';
 import { useNotifications } from '../contexts/NotificationContext';
-import { NOTIF_TYPES } from '../constants/notificationTypes';
 import { useAuth } from '../contexts/Authcontext';
+import TaskCard from '../components/tasks/TaskCard';
+import KanbanColumn from '../components/tasks/KanbanColumn';
+import TaskDetailModal from '../components/tasks/TaskDetailModal';
+import { STATUTS, STATUT_CONFIG, PRIORITES, PRIORITE_CONFIG } from '../components/tasks/taskConstants';
+import { useSucursales } from '../hooks/useSucursales';
 
-const STATUTS = ['A_FAIRE', 'EN_COURS', 'EN_ATTENTE', 'TERMINEE', 'ANNULEE'];
-const STATUT_CONFIG = {
-  A_FAIRE: { label: 'A faire', variant: 'default', color: '#94A3B8', bg: '#F1F5F9', icon: '⏳' },
-  EN_COURS: { label: 'En cours', variant: 'info', color: '#3B82F6', bg: '#EFF6FF', icon: '🔄' },
-  EN_ATTENTE: { label: 'En attente', variant: 'warning', color: '#F59E0B', bg: '#FFFBEB', icon: '⏸' },
-  TERMINEE: { label: 'Terminee', variant: 'success', color: '#10B981', bg: '#F0FDF4', icon: '✅' },
-  ANNULEE: { label: 'Annulee', variant: 'danger', color: '#EF4444', bg: '#FFF5F5', icon: '❌' },
+const EMPTY = {
+  titre: '',
+  description: '',
+  statut: 'A_FAIRE',
+  priorite: 'MOYENNE',
+  dateEcheance: '',
+  assigneeId: null,
+  projetId: null,
+  sucursalId: '',
+  visibilite: 'PUBLIQUE'
 };
-const PRIORITES = ['BASSE', 'NORMALE', 'HAUTE', 'URGENTE'];
-const PRIORITE_CONFIG = {
-  BASSE: { label: 'Basse', color: '#10B981', bg: '#F0FDF4' },
-  NORMALE: { label: 'Normale', color: '#3B82F6', bg: '#EFF6FF' },
-  HAUTE: { label: 'Haute', color: '#F59E0B', bg: '#FFFBEB' },
-  URGENTE: { label: 'Urgente', color: '#EF4444', bg: '#FFF5F5' },
-};
-const EMPTY = { titre: '', description: '', statut: 'A_FAIRE', priorite: 'NORMALE', dateEcheance: '', assigneeId: '', projetId: '' };
 
-// Composant KanbanColumn
-function KanbanColumn({ statut, tasks, onEdit, onDelete, onChangeStatut, onDragOver, onDrop }) {
-  const cfg = STATUT_CONFIG[statut];
-  
-  const handleDragOver = (e) => {
-    e.preventDefault();
-    onDragOver?.(statut);
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    const taskId = e.dataTransfer.getData('taskId');
-    if (taskId) onDrop?.(taskId, statut);
-  };
-
-  return (
-    <div 
-      style={{ 
-        flex: '1 1 280px', 
-        minWidth: 280, 
-        maxWidth: 350,
-        background: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-lg)',
-        border: '1px solid var(--border-default)',
-        display: 'flex',
-        flexDirection: 'column',
-        maxHeight: 'calc(100vh - 280px)',
-      }}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-    >
-      <div style={{ 
-        padding: '12px 16px',
-        background: cfg.bg,
-        borderBottom: `2px solid ${cfg.color}`,
-        borderTopLeftRadius: 'var(--radius-lg)',
-        borderTopRightRadius: 'var(--radius-lg)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 18 }}>{cfg.icon}</span>
-            <span style={{ fontWeight: 600, fontSize: 14, color: cfg.color }}>{cfg.label}</span>
-          </div>
-          <Badge variant={cfg.variant} size="sm">{tasks.length}</Badge>
-        </div>
-      </div>
-
-      <div style={{ 
-        padding: '12px',
-        overflowY: 'auto',
-        flex: 1,
-        minHeight: 200,
-      }}>
-        {tasks.length === 0 ? (
-          <div style={{ 
-            textAlign: 'center', 
-            padding: '32px 16px',
-            color: 'var(--text-muted)',
-            fontSize: 12,
-            border: '1px dashed var(--border-default)',
-            borderRadius: 'var(--radius-md)',
-          }}>
-            Aucune tache
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {tasks.map(task => (
-              <TaskCard 
-                key={task.id} 
-                task={task} 
-                onEdit={onEdit} 
-                onDelete={onDelete}
-                onChangeStatut={onChangeStatut}
-                showStatutButtons={true}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Composant TaskCard
-function TaskCard({ task, onEdit, onDelete, onChangeStatut, showStatutButtons = false, compact = false }) {
-  const statutCfg = STATUT_CONFIG[task.statut];
-  const prioriteCfg = PRIORITE_CONFIG[task.priorite];
-  
-  const handleDragStart = (e) => {
-    e.dataTransfer.setData('taskId', task.id);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const isExpired = task.dateEcheance && new Date(task.dateEcheance) < new Date() && task.statut !== 'TERMINEE' && task.statut !== 'ANNULEE';
-
-  return (
-    <div 
-      draggable
-      onDragStart={handleDragStart}
-      style={{
-        background: 'var(--bg-surface)',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border-default)',
-        padding: compact ? '10px 12px' : '14px 16px',
-        transition: 'all var(--transition-fast)',
-        cursor: 'grab',
-        position: 'relative',
-        boxShadow: 'var(--shadow-xs)',
-      }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow-xs)'}
-    >
-      <div style={{
-        position: 'absolute',
-        left: 0,
-        top: 0,
-        bottom: 0,
-        width: 3,
-        background: prioriteCfg.color,
-        borderTopLeftRadius: 'var(--radius-md)',
-        borderBottomLeftRadius: 'var(--radius-md)',
-      }} />
-
-      <div style={{ marginLeft: 8 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <div style={{ flex: 1 }}>
-            <h4 style={{ 
-              fontWeight: 600, 
-              fontSize: compact ? 13 : 14, 
-              color: 'var(--text-primary)',
-              marginBottom: 6,
-            }}>
-              {task.titre}
-            </h4>
-            {task.description && !compact && (
-              <p style={{ 
-                fontSize: 12, 
-                color: 'var(--text-muted)',
-                overflow: 'hidden',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              }}>
-                {task.description}
-              </p>
-            )}
-          </div>
-          
-          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-            <button 
-              onClick={() => onEdit(task)} 
-              style={{ 
-                border: 'none', 
-                background: 'none', 
-                cursor: 'pointer', 
-                color: 'var(--text-muted)', 
-                padding: 4,
-                borderRadius: 'var(--radius-sm)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              <Pencil size={14} />
-            </button>
-            <button 
-              onClick={() => onDelete(task)} 
-              style={{ 
-                border: 'none', 
-                background: 'none', 
-                cursor: 'pointer', 
-                color: 'var(--color-danger)', 
-                padding: 4,
-                borderRadius: 'var(--radius-sm)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        </div>
-
-        <div style={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: compact ? 8 : 12, 
-          flexWrap: 'wrap',
-          marginBottom: showStatutButtons ? 12 : 0,
-        }}>
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 4,
-            padding: '2px 8px',
-            background: prioriteCfg.bg,
-            borderRadius: 'var(--radius-full)',
-          }}>
-            <span style={{ fontSize: 10, color: prioriteCfg.color, fontWeight: 600 }}>
-              {prioriteCfg.label}
-            </span>
-          </div>
-
-          <div style={{ 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: 4,
-            padding: '2px 8px',
-            background: statutCfg.bg,
-            borderRadius: 'var(--radius-full)',
-          }}>
-            <span style={{ fontSize: 11, color: statutCfg.color, fontWeight: 500 }}>
-              {statutCfg.icon} {statutCfg.label}
-            </span>
-          </div>
-
-          {task.dateEcheance && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 4,
-              color: isExpired ? 'var(--color-danger)' : 'var(--text-muted)',
-            }}>
-              <Calendar size={12} />
-              <span style={{ fontSize: 11 }}>
-                {new Date(task.dateEcheance).toLocaleDateString('fr-FR')}
-                {isExpired && <span style={{ marginLeft: 4 }}> Depassee</span>}
-              </span>
-            </div>
-          )}
-
-          {task.assigneeName && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Avatar name={task.assigneeName} size={22} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{task.assigneeName}</span>
-            </div>
-          )}
-
-          {task.projetNom && !compact && (
-            <div style={{ 
-              fontSize: 11, 
-              color: 'var(--text-muted)',
-              padding: '2px 8px',
-              background: 'var(--bg-muted)',
-              borderRadius: 'var(--radius-full)',
-            }}>
-              {task.projetNom}
-            </div>
-          )}
-        </div>
-
-        {showStatutButtons && (
-          <div style={{ 
-            marginTop: 12, 
-            display: 'flex', 
-            gap: 6, 
-            flexWrap: 'wrap',
-            paddingTop: 8,
-            borderTop: '1px solid var(--border-muted)',
-          }}>
-            {STATUTS.filter(s => s !== task.statut).map(s => (
-              <button
-                key={s}
-                onClick={() => onChangeStatut(task, s)}
-                style={{
-                  fontSize: 10,
-                  padding: '3px 10px',
-                  borderRadius: 'var(--radius-full)',
-                  border: `1px solid ${STATUT_CONFIG[s].color}40`,
-                  background: STATUT_CONFIG[s].bg,
-                  color: STATUT_CONFIG[s].color,
-                  cursor: 'pointer',
-                  fontWeight: 500,
-                  transition: 'all var(--transition-fast)',
-                }}
-                onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.02)'}
-                onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
-              >
-                {STATUT_CONFIG[s].icon} {STATUT_CONFIG[s].label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// Composant principal
 export default function Taches() {
   const { user } = useAuth();
+  const isSecretary = user?.roleName === 'SECRETAIRE';
+  const createdByMe = task => String(task.createurId ?? task.createur?.id) === String(user?.id);
   const { notifyTask } = useNotifications();
   
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterProjet, setFilterProjet] = useState('');
+  const { showSucursal, optionsFiltre: sucursalFiltreOptions,
+          optionsFormulaire: sucursalFormOptions, correspond: sucursalMatch,
+          compteAncre, sucursalUtilisateurNom } = useSucursales();
+  const [filterSuc, setFilterSuc] = useState('');
   const [filterPriorite, setFilterPriorite] = useState('');
   const [filterAssigné, setFilterAssigné] = useState('');
   const [view, setView] = useState('kanban');
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
   const [deleteItem, setDeleteItem] = useState(null);
+  const [viewItem, setViewItem] = useState(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [projets, setProjets] = useState([]);
   const [employes, setEmployes] = useState([]);
-  const [draggedColumn, setDraggedColumn] = useState(null);
+  const [monEtat, setMonEtat] = useState(null);
+
+  /* État de réaction de l'utilisateur courant (congé, rôle, droits) */
+  useEffect(() => {
+    tacheApi.monEtat()
+      .then(res => setMonEtat(res?.data || res))
+      .catch(() => setMonEtat({ peutReagir: false, raison: 'État indisponible' }));
+  }, []);
 
   const load = async () => {
-    setLoading(true);
     try {
-      const res = await tacheApi.getAll({ page: 0, size: 200 });
-      const d = res.data?.data || res.data;
-      setData(Array.isArray(d) ? d : d?.content || []);
+      const tasks = await fetchAllPages(tacheApi.getAll, 200);
+      setData(tasks);
     } catch {
-      toast.error('Erreur chargement des taches');
+      toast.error('Erreur chargement des tâches');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useDeferredTask(load, 'mount');
 
   useEffect(() => {
     Promise.all([
-      projetApi.getAll({ size: 200 }),
-      employerApi.getAll({ size: 200 }),
+      fetchAllPages(projetApi.getAll, 200),
+      isSecretary ? secretariatApi.employes() : fetchAllPages(employerApi.getAll, 200),
     ]).then(([p, e]) => {
-      const pd = p.data?.data || p.data;
-      const ed = e.data?.data || e.data;
-      setProjets(Array.isArray(pd) ? pd : pd?.content || []);
+      const ed = e?.data?.data || e?.data || e;
+      setProjets(p);
       setEmployes(Array.isArray(ed) ? ed : ed?.content || []);
-    }).catch(() => toast.error('Erreur chargement des references'));
-  }, []);
+    }).catch(() => toast.error('Erreur chargement des références'));
+  }, [isSecretary]);
 
-  const filtered = data.filter(t => {
-    const matchSearch = !search || t.titre?.toLowerCase().includes(search.toLowerCase()) || t.description?.toLowerCase().includes(search.toLowerCase());
+  const dataParSuccursale = data.filter(t => sucursalMatch(t, filterSuc));
+  const filtered = dataParSuccursale.filter(t => {
+    const matchSearch = !search || 
+      t.titre?.toLowerCase().includes(search.toLowerCase()) || 
+      t.description?.toLowerCase().includes(search.toLowerCase());
     const matchProjet = !filterProjet || String(t.projetId) === String(filterProjet);
     const matchPriorite = !filterPriorite || t.priorite === filterPriorite;
     const matchAssigné = !filterAssigné || String(t.assigneeId) === String(filterAssigné);
@@ -370,6 +99,16 @@ export default function Taches() {
   });
 
   const byStatut = (s) => filtered.filter(t => t.statut === s);
+  const projetSelectionne = projets.find(project => String(project.id) === String(form.projetId));
+  const projetsFormOptions = projets
+    .filter(project => !form.sucursalId || !project.sucursalId || String(project.sucursalId) === String(form.sucursalId))
+    .map(project => ({ value: project.id, label: project.nom }));
+  const employesFormOptions = employes
+    .filter(employee => !form.sucursalId || String(employee.sucursalId) === String(form.sucursalId))
+    .map(employee => ({ value: employee.id, label: employee.name }));
+  const sucursalesFormOptions = projetSelectionne?.sucursalId
+    ? sucursalFormOptions.filter(option => !option.value || String(option.value) === String(projetSelectionne.sucursalId))
+    : sucursalFormOptions;
 
   const openCreate = () => { 
     setForm(EMPTY); 
@@ -383,48 +122,127 @@ export default function Taches() {
       titre: item.titre || '',
       description: item.description || '',
       statut: item.statut || 'A_FAIRE',
-      priorite: item.priorite || 'NORMALE',
+      priorite: item.priorite || 'MOYENNE',
       dateEcheance: item.dateEcheance || '',
-      assigneeId: item.assigneeId || '',
-      projetId: item.projetId || ''
+      assigneeId: item.assigneeId || null,
+      projetId: item.projetId || item.projet?.id || null,
+      sucursalId: item.sucursalId ? String(item.sucursalId) : '',
+      visibilite: item.visibilite || 'PUBLIQUE'
     });
     setModalOpen(true);
   };
 
-  const handleSave = async (e) => {
-    e.preventDefault();
-    if (!form.titre.trim()) {
-      toast.error('Le titre est requis');
+  const set = k => e => {
+    const value = e.target?.value ?? e;
+
+    if (k === 'projetId') {
+      const projectId = value === '' || value === null || value === undefined ? null : Number(value);
+      const selectedProject = projets.find(project => String(project.id) === String(projectId));
+      setForm(f => ({
+        ...f,
+        projetId: projectId,
+        sucursalId: selectedProject?.sucursalId ? String(selectedProject.sucursalId) : f.sucursalId,
+        ...(selectedProject?.sucursalId && f.assigneeId
+          && String(employes.find(employee => String(employee.id) === String(f.assigneeId))?.sucursalId) !== String(selectedProject.sucursalId)
+          ? { assigneeId: null } : {}),
+      }));
       return;
     }
+    if (k === 'sucursalId') {
+      setForm(f => {
+        const selectedProject = projets.find(project => String(project.id) === String(f.projetId));
+        const projectBranch = selectedProject?.sucursalId;
+        const newBranch = value ? String(value) : '';
+        return {
+          ...f,
+          sucursalId: newBranch,
+          ...(projectBranch && newBranch && String(projectBranch) !== newBranch ? { projetId: null } : {}),
+          ...(f.assigneeId && newBranch
+            && String(employes.find(employee => String(employee.id) === String(f.assigneeId))?.sucursalId) !== newBranch
+            ? { assigneeId: null } : {}),
+        };
+      });
+      return;
+    }
+    
+    if (k === 'assigneeId') {
+      setForm(f => ({
+        ...f,
+        [k]: value === '' || value === null || value === undefined ? null : Number(value)
+      }));
+    } else {
+      setForm(f => ({ ...f, [k]: value }));
+    }
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+
+    const errors = [];
+    if (!form.titre?.trim()) errors.push('Le titre est obligatoire');
+    if (!form.projetId) errors.push('Le projet est obligatoire');
+
+    if (errors.length > 0) {
+      errors.forEach(err => toast.error(err));
+      return;
+    }
+
+    const payload = {
+      titre: form.titre.trim(),
+      description: form.description?.trim() || null,
+      statut: form.statut,
+      priorite: form.priorite,
+      visibilite: form.visibilite || 'PUBLIQUE',
+      dateEcheance: form.dateEcheance || null,
+      assigneeId: form.assigneeId ? Number(form.assigneeId) : null,
+      projetId: form.projetId ? Number(form.projetId) : null,
+      sucursalId: form.sucursalId ? Number(form.sucursalId) : null
+    };
+
     setSaving(true);
     try {
-      const payload = { ...form, assigneeId: form.assigneeId || null, projetId: form.projetId || null };
       const assignee = employes.find(e => e.id === form.assigneeId);
       
       if (editItem) {
         await tacheApi.update(editItem.id, payload);
-        notifyTask({
-          task: { id: editItem.id, titre: form.titre },
-          action: 'modified',
-          assignee: assignee,
-          currentUser: user
-        });
-        toast.success('Tache modifiee');
+        if (notifyTask) {
+          notifyTask({
+            task: { id: editItem.id, titre: form.titre },
+            action: 'modified',
+            assignee: assignee,
+            currentUser: user
+          });
+        }
+        toast.success('Tâche modifiée avec succès');
       } else {
         const response = await tacheApi.create(payload);
-        notifyTask({
-          task: { id: response.data?.id, titre: form.titre },
-          action: 'created',
-          assignee: assignee,
-          currentUser: user
-        });
-        toast.success('Tache creee');
+        if (notifyTask) {
+          notifyTask({
+            task: { id: response.data?.id, titre: form.titre },
+            action: 'created',
+            assignee: assignee,
+            currentUser: user
+          });
+        }
+        toast.success('Tâche créée avec succès');
       }
       setModalOpen(false);
       load();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Erreur lors de la sauvegarde');
+      const errorData = err.response?.data;
+      let errorMessage = 'Erreur lors de la sauvegarde';
+      
+      if (errorData?.message) {
+        errorMessage = errorData.message;
+      } else if (errorData?.errors) {
+        errorMessage = Array.isArray(errorData.errors)
+          ? errorData.errors.map(e => e.defaultMessage || e.message).filter(Boolean).join(', ')
+          : Object.values(errorData.errors).filter(Boolean).join(', ');
+      } else if (errorData?.error) {
+        errorMessage = errorData.error;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setSaving(false);
     }
@@ -434,13 +252,15 @@ export default function Taches() {
     setDeleting(true);
     try {
       await tacheApi.delete(deleteItem.id);
-      notifyTask({
-        task: { titre: deleteItem.titre },
-        action: 'deleted',
-        assignee: null,
-        currentUser: user
-      });
-      toast.success('Tache supprimee');
+      if (notifyTask) {
+        notifyTask({
+          task: { titre: deleteItem.titre },
+          action: 'deleted',
+          assignee: null,
+          currentUser: user
+        });
+      }
+      toast.success('Tâche supprimée avec succès');
       setDeleteItem(null);
       load();
     } catch {
@@ -454,22 +274,56 @@ export default function Taches() {
     try {
       await tacheApi.changeStatut(task.id, statut);
       
-      notifyTask({
-        task: { id: task.id, titre: task.titre },
-        action: statut === 'TERMINEE' ? 'completed' : 'modified',
-        assignee: { id: task.assigneeId },
-        currentUser: user
-      });
+      if (notifyTask) {
+        notifyTask({
+          task: { id: task.id, titre: task.titre },
+          action: statut === 'TERMINEE' ? 'completed' : 'modified',
+          assignee: { id: task.assigneeId },
+          currentUser: user
+        });
+      }
       
-      toast.success(`Tache deplacee vers ${STATUT_CONFIG[statut].label}`);
+      toast.success(`Tâche déplacée vers ${STATUT_CONFIG[statut].label}`);
       load();
-    } catch {
-      toast.error('Erreur lors du changement de statut');
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Erreur lors du changement de statut');
     }
   };
 
+  /* ─── Bouton « réagir » contextuel selon l'état de l'utilisateur ───
+     - null  → rôle de gestion : toutes les transitions disponibles ;
+     - []    → aucune réaction possible (congé, compte désactivé…) ;
+     - [...] → transitions autorisées pour l'assigné/créateur selon le statut. */
+  const reactionActionsFor = (task) => {
+    if (!monEtat) return [];
+    if (!monEtat.peutReagir) return [];
+    if (monEtat.roleGestion) return null; // toutes les transitions
+    const t = task.statut;
+    const estConcerne = task.assigneeId === user?.id
+      || task.assignee?.id === user?.id
+      || task.createurId === user?.id
+      || task.createur?.id === user?.id;
+    if (!estConcerne) return [];
+    const transitions = {
+      A_FAIRE:  ['EN_COURS', 'BLOQUEE'],
+      EN_COURS: ['EN_REVUE', 'BLOQUEE'],
+      EN_REVUE: ['TERMINEE'],
+      BLOQUEE:  ['EN_COURS'],
+      TERMINEE: [],
+    };
+    return (transitions[t] || []).filter(s => s !== t);
+  };
+
+  const [dragActive, setDragActive] = useState(false);
+
   const handleDragOverColumn = (statut) => {
-    setDraggedColumn(statut);
+    // Le highlight est géré localement par chaque colonne (isDragOver) ;
+    // ce hook reste disponible pour des effets globaux.
+    void statut;
+  };
+
+  const handleDragLeaveColumn = () => {
+    void 0;
   };
 
   const handleDropOnColumn = async (taskId, newStatut) => {
@@ -477,10 +331,12 @@ export default function Taches() {
     if (task && task.statut !== newStatut) {
       await handleChangeStatut(task, newStatut);
     }
-    setDraggedColumn(null);
   };
 
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target?.value ?? e }));
+  const handleTaskClick = (task) => {
+    setViewItem(task);
+    setDetailModalOpen(true);
+  };
 
   const stats = {
     total: filtered.length,
@@ -489,161 +345,100 @@ export default function Taches() {
 
   return (
     <div>
-      <PageHeader title="Gestion des Taches" subtitle={`${stats.total} tache${stats.total !== 1 ? 's' : ''} au total`}>
-        <Button onClick={openCreate}>
-          <Plus size={16} />
-          Nouvelle tache
-        </Button>
+      <PageHeader title="Gestion des Tâches" subtitle={`${stats.total} tâche${stats.total !== 1 ? 's' : ''} au total`}>
+        {<Button onClick={openCreate}>
+          <SquarePlus size={16} />
+          Nouvelle tâche
+        </Button>}
       </PageHeader>
 
-      <div style={{ display: 'flex', gap: 12, marginBottom: 24, flexWrap: 'wrap' }}>
-        {STATUTS.map(s => (
-          <div
-            key={s}
-            style={{
-              flex: '1',
-              minWidth: 100,
-              padding: '12px 16px',
-              background: STATUT_CONFIG[s].bg,
-              borderRadius: 'var(--radius-lg)',
-              border: `1px solid ${STATUT_CONFIG[s].color}30`,
-              cursor: 'pointer',
-              transition: 'all var(--transition-fast)',
-            }}
-            onClick={() => setFilterProjet('')}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 20 }}>{STATUT_CONFIG[s].icon}</span>
-              <span style={{ fontSize: 13, fontWeight: 600, color: STATUT_CONFIG[s].color }}>
-                {STATUT_CONFIG[s].label}
-              </span>
-            </div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: STATUT_CONFIG[s].color }}>
-              {stats.parStatut[s]}
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Bandeau d'état (congé / compte désactivé) */}
+      {monEtat?.raison && (
+        <Alert variant={monEtat.enConge ? 'warning' : 'danger'} style={{ marginBottom: 16 }}>
+          <Flex align="center" gap={8}><AlertCircle size={16} />{monEtat.raison}</Flex>
+        </Alert>
+      )}
+
+      <StatsGrid cols={STATUTS.length}>
+        {STATUTS.map(s => {
+          const Icon = STATUT_CONFIG[s].icon;
+          return (
+            <StatCard
+              key={s}
+              title={STATUT_CONFIG[s].label}
+              value={stats.parStatut[s]}
+              icon={<Icon size={22} />}
+              color={STATUT_CONFIG[s].color}
+            />
+          );
+        })}
+      </StatsGrid>
 
       <Card style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: '2', minWidth: 200 }}>
+        <Flex wrap gap={12} align="flex-end">
+          <Flex direction="column" style={{ flex: 2, minWidth: 200 }}>
             <SearchInput
               value={search}
               onChange={setSearch}
               placeholder="Rechercher par titre ou description..."
             />
-          </div>
-          
-          <div style={{ flex: '1', minWidth: 150 }}>
-            <select
+          </Flex>
+
+          <Flex direction="column" style={{ flex: 1, minWidth: 150 }}>
+            <Select
               value={filterProjet}
               onChange={e => setFilterProjet(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '9px 14px',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">Tous les projets</option>
-              {projets.map(p => (
-                <option key={p.id} value={p.id}>{p.nom}</option>
-              ))}
-            </select>
-          </div>
+              placeholder={null}
+              options={[
+                { value:'', label:'Tous les projets' },
+                ...projets.map(p => ({ value:p.id, label:p.nom })),
+              ]}
+            />
+          </Flex>
 
-          <div style={{ flex: '1', minWidth: 130 }}>
-            <select
+          {showSucursal && (
+            <Flex direction="column" style={{ flex: 1, minWidth: 150 }}>
+              <Select
+                value={filterSuc}
+                onChange={e => setFilterSuc(e.target.value)}
+                placeholder={null}
+                options={sucursalFiltreOptions}
+              />
+            </Flex>
+          )}
+
+          <Flex direction="column" style={{ flex: 1, minWidth: 130 }}>
+            <Select
               value={filterPriorite}
               onChange={e => setFilterPriorite(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '9px 14px',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">Toutes priorites</option>
-              {PRIORITES.map(p => (
-                <option key={p} value={p}>{PRIORITE_CONFIG[p].label}</option>
-              ))}
-            </select>
-          </div>
+              placeholder={null}
+              options={[
+                { value:'', label:'Toutes priorités' },
+                ...PRIORITES.map(p => ({ value:p, label:PRIORITE_CONFIG[p].label })),
+              ]}
+            />
+          </Flex>
 
-          <div style={{ flex: '1', minWidth: 150 }}>
-            <select
+          <Flex direction="column" style={{ flex: 1, minWidth: 150 }}>
+            <Select
               value={filterAssigné}
               onChange={e => setFilterAssigné(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '9px 14px',
-                border: '1px solid var(--border-default)',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--bg-surface)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="">Tous les assignes</option>
-              {employes.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
+              placeholder={null}
+              options={[
+                { value:'', label:'Tous les assignés' },
+                ...employes.map(e => ({ value:e.id, label:e.name })),
+              ]}
+            />
+          </Flex>
 
-          <div>
-            <div style={{ display: 'flex', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-              <button
-                onClick={() => setView('kanban')}
-                style={{
-                  padding: '8px 20px',
-                  border: 'none',
-                  background: view === 'kanban' ? 'var(--color-primary)' : 'var(--bg-surface)',
-                  color: view === 'kanban' ? '#fff' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all var(--transition-fast)',
-                }}
-              >
-                <LayoutGrid size={14} />
-                Kanban
-              </button>
-              <button
-                onClick={() => setView('list')}
-                style={{
-                  padding: '8px 20px',
-                  border: 'none',
-                  borderLeft: '1px solid var(--border-default)',
-                  background: view === 'list' ? 'var(--color-primary)' : 'var(--bg-surface)',
-                  color: view === 'list' ? '#fff' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all var(--transition-fast)',
-                }}
-              >
-                <List size={14} />
-                Liste
-              </button>
-            </div>
-          </div>
+          <Tabs
+            active={view}
+            onChange={setView}
+            tabs={[
+              { key:'kanban', label:'Kanban', icon:<LayoutGrid size={14}/> },
+              { key:'list', label:'Liste', icon:<List size={14}/> },
+            ]}
+          />
 
           {(search || filterProjet || filterPriorite || filterAssigné) && (
             <Button
@@ -656,52 +451,59 @@ export default function Taches() {
                 setFilterAssigné('');
               }}
             >
-              Reinitialiser
+              Réinitialiser
             </Button>
           )}
-        </div>
+        </Flex>
       </Card>
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-          <div style={{ 
-            width: 40, 
-            height: 40, 
-            border: '3px solid var(--border-default)', 
-            borderTopColor: 'var(--color-primary)', 
-            borderRadius: '50%', 
+          <div style={{
+            width: 40,
+            height: 40,
+            border: '3px solid var(--border-default)',
+            borderTopColor: 'var(--color-primary)',
+            borderRadius: '50%',
             animation: 'spin 1s linear infinite',
             margin: '0 auto 16px',
           }} />
-          <p style={{ color: 'var(--text-muted)' }}>Chargement des taches...</p>
+          <p style={{ color: 'var(--text-muted)' }}>Chargement des tâches...</p>
         </div>
       )}
 
       {!loading && view === 'kanban' && (
-        <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, alignItems: 'flex-start' }}>
+        <Flex gap={16} align="flex-start" style={{ overflowX: 'auto', paddingBottom: 16 }}>
           {STATUTS.map(s => (
             <KanbanColumn
               key={s}
               statut={s}
               tasks={byStatut(s)}
+              onTaskClick={handleTaskClick}
               onEdit={openEdit}
               onDelete={setDeleteItem}
               onChangeStatut={handleChangeStatut}
+              reactionActionsFor={reactionActionsFor}
               onDragOver={handleDragOverColumn}
+              onDragLeaveColumn={handleDragLeaveColumn}
               onDrop={handleDropOnColumn}
+              dragActive={dragActive}
+              onDragStateChange={setDragActive}
+              readOnly={isSecretary ? (task) => !createdByMe(task) : false}
+              hideDelete={isSecretary}
             />
           ))}
-        </div>
+        </Flex>
       )}
 
       {!loading && view === 'list' && (
         <Card padding={0}>
           {filtered.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 24px' }}>
-              <AlertCircle size={48} style={{ color: 'var(--text-muted)', marginBottom: 16 }} />
-              <p style={{ color: 'var(--text-muted)', marginBottom: 16 }}>Aucune tache trouvee</p>
-              <Button onClick={openCreate}>Creer une tache</Button>
-            </div>
+            <Empty
+              icon={<AlertCircle size={48} />}
+              title="Aucune tâche trouvée"
+              action={<Button onClick={openCreate}>Créer une tâche</Button>}
+            />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               {filtered.map((task, index) => (
@@ -709,7 +511,7 @@ export default function Taches() {
                   key={task.id}
                   style={{
                     borderBottom: index < filtered.length - 1 ? '1px solid var(--border-muted)' : 'none',
-                    padding: '16px 20px',
+                    padding: '12px 20px',
                     transition: 'background var(--transition-fast)',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
@@ -717,11 +519,13 @@ export default function Taches() {
                 >
                   <TaskCard
                     task={task}
+                    onTaskClick={handleTaskClick}
                     onEdit={openEdit}
                     onDelete={setDeleteItem}
                     onChangeStatut={handleChangeStatut}
-                    showStatutButtons={false}
-                    compact={false}
+                    reactionActions={reactionActionsFor(task)}
+                    readOnly={isSecretary && !createdByMe(task)}
+                    hideDelete={isSecretary}
                   />
                 </div>
               ))}
@@ -730,34 +534,40 @@ export default function Taches() {
         </Card>
       )}
 
+      <TaskDetailModal
+        task={viewItem}
+        open={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        onEdit={isSecretary && !createdByMe(viewItem || {}) ? undefined : openEdit}
+      />
+
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editItem ? 'Modifier la tache' : 'Nouvelle tache'}
+        title={editItem ? 'Modifier la tâche' : 'Nouvelle tâche'}
         width={600}
-        footer={
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+        footer={<Flex justify="flex-end" gap={10}>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Annuler</Button>
             <Button onClick={handleSave} loading={saving}>
-              {editItem ? 'Enregistrer' : 'Creer'}
+              {editItem ? 'Enregistrer' : 'Créer'}
             </Button>
-          </div>
+        </Flex>
         }
       >
         <form onSubmit={handleSave}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Flex direction="column" gap={16}>
             <Input
               label="Titre *"
               value={form.titre}
               onChange={set('titre')}
-              placeholder="Titre de la tache"
+              placeholder="Titre de la tâche"
               required
             />
             <Textarea
               label="Description"
               value={form.description}
               onChange={set('description')}
-              placeholder="Description detaillee..."
+              placeholder="Description détaillée..."
               rows={3}
             />
             <FormRow>
@@ -765,38 +575,61 @@ export default function Taches() {
                 label="Statut"
                 value={form.statut}
                 onChange={set('statut')}
-                options={STATUTS.map(s => ({ value: s, label: `${STATUT_CONFIG[s].icon} ${STATUT_CONFIG[s].label}` }))}
+                options={STATUTS.map(s => ({ 
+                  value: s, 
+                  label: `${STATUT_CONFIG[s].label}` 
+                }))}
               />
               <Select
-                label="Priorite"
+                label="Priorité"
                 value={form.priorite}
                 onChange={set('priorite')}
                 options={PRIORITES.map(p => ({ value: p, label: PRIORITE_CONFIG[p].label }))}
               />
             </FormRow>
             <FormRow>
+              <SucursaleField
+                showSucursal={showSucursal}
+                value={form.sucursalId}
+                onChange={set('sucursalId')}
+                options={sucursalesFormOptions}
+                compteAncre={compteAncre}
+                sucursalUtilisateurNom={sucursalUtilisateurNom}
+              />
               <Select
-                label="Projet"
+                label="Projet *"
                 value={form.projetId}
                 onChange={set('projetId')}
-                options={projets.map(p => ({ value: p.id, label: p.nom }))}
-                placeholder="Selectionner un projet..."
+                options={projetsFormOptions}
+                placeholder="Choisir un projet"
+                required
               />
               <Select
-                label="Assigner a"
-                value={form.assigneeId}
-                onChange={set('assigneeId')}
-                options={employes.map(e => ({ value: e.id, label: e.name }))}
-                placeholder="Selectionner un employe..."
+                label="Visibilité"
+                value={form.visibilite}
+                onChange={set('visibilite')}
+                options={[
+                  { value: 'PUBLIQUE', label: 'Publique — visible par tous' },
+                  { value: 'PRIVEE', label: 'Privée — créateur + assigné uniquement' }
+                ]}
               />
             </FormRow>
-            <Input
-              label="Date d'echeance"
-              type="date"
-              value={form.dateEcheance}
-              onChange={set('dateEcheance')}
-            />
-          </div>
+            <FormRow>
+              <Select
+                label="Assigner à"
+                value={form.assigneeId}
+                onChange={set('assigneeId')}
+                options={employesFormOptions}
+                placeholder="Sélectionner un employé..."
+              />
+              <Input
+                label="Date d'échéance (optionnelle)"
+                type="date"
+                value={form.dateEcheance}
+                onChange={set('dateEcheance')}
+              />
+            </FormRow>
+          </Flex>
         </form>
       </Modal>
 
@@ -805,18 +638,11 @@ export default function Taches() {
         onClose={() => setDeleteItem(null)}
         onConfirm={handleDelete}
         loading={deleting}
-        title="Supprimer la tache"
-        message={`Etes-vous sur de vouloir supprimer la tache "${deleteItem?.titre}" ? Cette action est irreversible.`}
+        title="Supprimer la tâche"
+        message={`Êtes-vous sûr de vouloir supprimer la tâche "${deleteItem?.titre}" ? Cette action est irréversible.`}
         confirmLabel="Supprimer"
         confirmVariant="danger"
       />
-
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

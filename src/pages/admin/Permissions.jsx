@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
-import { Plus, Pencil, Trash2, Zap, Settings, ChevronDown, ChevronUp } from 'lucide-react';
-import { permissionApi, actionApi } from '../../api';
-import { 
-    PageHeader, Card, Table, Badge, Button, Modal, Input, Textarea, 
-    Confirm, SearchInput, Alert 
+import { useState } from 'react';
+import { useDeferredTask } from '../../hooks/useDeferredTask';
+import { SquarePlus, Pencil, Trash2, Zap, Settings, ChevronDown, ChevronUp } from 'lucide-react';
+import { permissionApi, actionApi } from '../../Api';
+import {
+    PageHeader, Card, Table, Badge, Button, Modal, Input, Textarea,
+    Confirm, SearchInput, Alert, StatCard, StatsGrid, IconBox, Flex
 } from '../../components/ui';
 import toast from 'react-hot-toast';
 
@@ -38,7 +39,6 @@ export default function Permissions() {
     // ============================================================
     
     const loadPermissions = async () => {
-        setLoading(true);
         try {
             const res = await permissionApi.getAll({ page: 0, size: 100 });
             const data = res.data?.data || res.data;
@@ -64,10 +64,7 @@ export default function Permissions() {
         }
     };
     
-    useEffect(() => {
-        loadPermissions();
-        loadActions();
-    }, []);
+    useDeferredTask(() => Promise.all([loadPermissions(), loadActions()]), 'mount');
     
     // ============================================================
     // FILTRAGE
@@ -238,18 +235,8 @@ export default function Permissions() {
             key: 'name',
             label: 'Permission',
             render: (value, row) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: 'var(--radius-md)',
-                        background: 'rgba(245, 158, 11, 0.1)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center'
-                    }}>
-                        <Zap size={20} style={{ color: '#F59E0B' }} />
-                    </div>
+                <Flex align="center" gap={12}>
+                    <IconBox icon={<Zap size={20} />} color="#F59E0B" size={40} />
                     <div>
                         <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>
                             {value}
@@ -260,7 +247,7 @@ export default function Permissions() {
                             </p>
                         )}
                     </div>
-                </div>
+                </Flex>
             )
         },
         {
@@ -284,7 +271,7 @@ export default function Permissions() {
             label: 'Actions',
             align: 'right',
             render: (value, row) => (
-                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <Flex gap={8} justify="flex-end">
                     <Button
                         variant="ghost"
                         size="sm"
@@ -308,7 +295,7 @@ export default function Permissions() {
                     >
                         <Trash2 size={16} />
                     </Button>
-                </div>
+                </Flex>
             )
         }
     ];
@@ -356,78 +343,17 @@ export default function Permissions() {
                 subtitle="Gestion des permissions système et des actions associées"
             >
                 <Button onClick={openCreateModal}>
-                    <Plus size={16} />
+                    <SquarePlus size={16} />
                     Nouvelle permission
                 </Button>
             </PageHeader>
             
             {/* Statistiques rapides */}
-            <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: 16,
-                marginBottom: 24
-            }}>
-                <Card style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 'var(--radius-lg)',
-                            background: 'rgba(37, 99, 235, 0.1)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <Zap size={24} style={{ color: '#2563EB' }} />
-                        </div>
-                        <div>
-                            <p style={{ fontSize: 24, fontWeight: 700 }}>{permissions.length}</p>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Permissions</p>
-                        </div>
-                    </div>
-                </Card>
-                <Card style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 'var(--radius-lg)',
-                            background: 'rgba(16, 185, 129, 0.1)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <Settings size={24} style={{ color: '#10B981' }} />
-                        </div>
-                        <div>
-                            <p style={{ fontSize: 24, fontWeight: 700 }}>{actions.length}</p>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Actions disponibles</p>
-                        </div>
-                    </div>
-                </Card>
-                <Card style={{ padding: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <div style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 'var(--radius-lg)',
-                            background: 'rgba(245, 158, 11, 0.1)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center'
-                        }}>
-                            <span style={{ fontSize: 20, fontWeight: 700, color: '#F59E0B' }}>
-                                {Math.round(permissions.reduce((acc, p) => acc + (p.actions?.length || 0), 0) / (permissions.length || 1))}
-                            </span>
-                        </div>
-                        <div>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Actions moyennes</p>
-                            <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>par permission</p>
-                        </div>
-                    </div>
-                </Card>
-            </div>
+            <StatsGrid cols={3}>
+                <StatCard title="Permissions" value={permissions.length} icon={<Zap size={22} />} color="var(--color-primary)" />
+                <StatCard title="Actions disponibles" value={actions.length} icon={<Settings size={22} />} color="var(--color-success)" />
+                <StatCard title="Actions moyennes par permission" value={Math.round(permissions.reduce((acc, p) => acc + (p.actions?.length || 0), 0) / (permissions.length || 1))} icon={<Zap size={22} />} color="var(--color-warning)" />
+            </StatsGrid>
             
             {/* Tableau des permissions */}
             <Card padding={0}>

@@ -4,13 +4,14 @@ import {
   Upload, Download, Trash2, Pencil, File, FileText,
   Image, Archive, Send, Eye, X, LayoutGrid, List
 } from 'lucide-react';
-import { documentApi, employerApi, authApi } from '../api';
+import { documentApi, employerApi, authApi, secretariatApi } from '../Api';
 import { useAuth } from '../contexts/Authcontext';
 import { useNotifications } from '../contexts/NotificationContext';
-import { NOTIF_TYPES } from '../constants/notificationTypes';
+import { useSucursales } from '../hooks/useSucursales';
+import { useDeferredTask } from '../hooks/useDeferredTask';
 import {
   PageHeader, Card, Badge, Button, Modal, Input, Select,
-  Confirm, SearchInput, Avatar, FormRow, Textarea
+  Confirm, SearchInput, Avatar, FormRow, Textarea, StatsGrid, StatCard, Skeleton, IconBox, SucursaleBadge, SucursaleField
 } from '../components/ui';
 import toast from 'react-hot-toast';
 
@@ -51,33 +52,34 @@ function getDisplayName(doc, currentUserId) {
   return { label: 'De', name: doc.expediteurNom || '—' };
 }
 
-function useEmployeeSearch(query) {
+function useEmployeeSearch(query, isSecretary = false) {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const timer = useRef(null);
+  const termeSuffisant = Boolean(query && query.trim().length >= 2);
 
   useEffect(() => {
-    if (!query || query.trim().length < 2) { setResults([]); return; }
+    if (!termeSuffisant) return;
     clearTimeout(timer.current);
     timer.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const r = await employerApi.getAll({ search: query.trim(), size: 10, page: 0 });
+        const r = isSecretary ? await secretariatApi.employes() : await employerApi.getAll({ search: query.trim(), size: 10, page: 0 });
         const d = r.data?.data || r.data;
-        setResults(Array.isArray(d) ? d : d?.content || []);
+        const list = Array.isArray(d) ? d : d?.content || [];
+        setResults(isSecretary ? list.filter(e => `${e.name || e.nom || ""}`.toLowerCase().includes(query.trim().toLowerCase())) : list);
       } catch { setResults([]); }
       finally { setLoading(false); }
     }, 350);
     return () => clearTimeout(timer.current);
-  }, [query]);
+  }, [query, isSecretary, termeSuffisant]);
 
-  return { results, loading };
+  return { results: termeSuffisant ? results : [], loading: termeSuffisant && loading };
 }
-
-function EmployeeDropdown({ value, onSelect, excludeId, placeholder = 'Rechercher…', label }) {
+function EmployeeDropdown({ value, onSelect, excludeId, placeholder = 'Rechercher…', label, isSecretary = false }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
-  const { results, loading } = useEmployeeSearch(query);
+  const { results, loading } = useEmployeeSearch(query, isSecretary);
   const ref = useRef();
 
   useEffect(() => {
@@ -85,8 +87,6 @@ function EmployeeDropdown({ value, onSelect, excludeId, placeholder = 'Recherche
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
-
-  useEffect(() => { if (!value) setQuery(''); }, [value]);
 
   const filtered = results.filter(e => !excludeId || e.id !== excludeId);
 
@@ -131,7 +131,7 @@ function EmployeeDropdown({ value, onSelect, excludeId, placeholder = 'Recherche
 
 const LIST_COLS = '40px 2fr 110px 80px 150px 110px 170px';
 
-function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, onDispatch, viewMode }) {
+function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, onDispatch, viewMode, readOnly = false, canEdit = true, canDelete = true }) {
   const Icon = TYPE_ICON[doc.type] || File;
   const color = TYPE_COLOR[doc.type] || 'var(--text-muted)';
   const { label, name } = getDisplayName(doc, currentUserId);
@@ -143,9 +143,7 @@ function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, 
         onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
       >
-        <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Icon size={18} style={{ color }} />
-        </div>
+        <IconBox icon={<Icon size={18} />} color={color} />
         <div style={{ minWidth: 0 }}>
           <p style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</p>
           {doc.description && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.description}</p>}
@@ -162,25 +160,19 @@ function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, 
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{formatDate(doc.dateEnvoi || doc.dateCreation)}</div>
         <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
           <Button variant="ghost" size="sm" onClick={() => onPreview(doc)} title="Visualiser" style={{ color: 'var(--color-info)' }}><Eye size={14} /></Button>
-          <Button variant="ghost" size="sm" onClick={() => onDispatch(doc)} title="Dispatcher" style={{ color: 'var(--color-primary)' }}><Send size={14} /></Button>
+          {!readOnly && canEdit && <Button variant="ghost" size="sm" onClick={() => onDispatch(doc)} title="Dispatcher" style={{ color: 'var(--color-primary)' }}><Send size={14} /></Button>}
           <Button variant="ghost" size="sm" onClick={() => onDownload(doc)} title="Telecharger"><Download size={14} /></Button>
-          <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier"><Pencil size={14} /></Button>
-          <Button variant="ghost" size="sm" onClick={() => onDelete(doc)} title="Supprimer" style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>
+          {!readOnly && canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier"><Pencil size={14} /></Button>}
+          {!readOnly && canDelete && <Button variant="ghost" size="sm" onClick={() => onDelete(doc)} title="Supprimer" style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>}
         </div>
       </div>
     );
   }
 
   return (
-    <div
-      style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', padding: 16, border: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 12, transition: 'all var(--transition-fast)' }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
-    >
+    <Card hover padding={16} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          <Icon size={22} style={{ color }} />
-        </div>
+        <IconBox icon={<Icon size={22} />} color={color} size={44} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', wordBreak: 'break-word', margin: 0 }}>{doc.nom}</p>
           {doc.description && (
@@ -192,6 +184,7 @@ function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, 
             <Badge size="sm" style={{ background: `${color}18`, color }}>{doc.type}</Badge>
             {doc.taille && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{bytesToSize(doc.taille)}</span>}
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatDate(doc.dateEnvoi || doc.dateCreation)}</span>
+<SucursaleBadge sucursalNom={doc.sucursalNom} />
           </div>
         </div>
       </div>
@@ -204,37 +197,47 @@ function DocCard({ doc, currentUserId, onEdit, onDelete, onDownload, onPreview, 
       </div>
       <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end' }}>
         <Button variant="ghost" size="sm" onClick={() => onPreview(doc)} title="Visualiser" style={{ color: 'var(--color-info)' }}><Eye size={14} /></Button>
-        <Button variant="ghost" size="sm" onClick={() => onDispatch(doc)} title="Dispatcher" style={{ color: 'var(--color-primary)' }}><Send size={14} /></Button>
+        {!readOnly && canEdit && <Button variant="ghost" size="sm" onClick={() => onDispatch(doc)} title="Dispatcher" style={{ color: 'var(--color-primary)' }}><Send size={14} /></Button>}
         <Button variant="ghost" size="sm" onClick={() => onDownload(doc)} title="Telecharger"><Download size={14} /></Button>
-        <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier"><Pencil size={14} /></Button>
-        <Button variant="ghost" size="sm" onClick={() => onDelete(doc)} title="Supprimer" style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>
+        {!readOnly && canEdit && <Button variant="ghost" size="sm" onClick={() => onEdit(doc)} title="Modifier"><Pencil size={14} /></Button>}
+        {!readOnly && canDelete && <Button variant="ghost" size="sm" onClick={() => onDelete(doc)} title="Supprimer" style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>}
       </div>
-    </div>
+    </Card>
   );
 }
 
-function PreviewModal({ doc, open, onClose, onDownload, onDispatch, currentUserId }) {
+function PreviewModal({ doc, open, onClose, onDownload, onDispatch, currentUserId, readOnly = false }) {
   const [blobUrl, setBlobUrl] = useState(null);
+  const [blobDocId, setBlobDocId] = useState(null);
   const [textContent, setTextContent] = useState(null);
-  const [loadingBlob, setLoadingBlob] = useState(false);
+  const currentBlobUrl = blobDocId === doc?.id ? blobUrl : null;
+  const currentTextContent = blobDocId === doc?.id ? textContent : null;
+  const loadingBlob = Boolean(open && doc && blobDocId !== doc.id);
+  const previewId = doc?.id;
+  const previewMime = doc?.typeMime;
+  const previewName = doc?.nom;
 
   useEffect(() => {
-    if (!open || !doc) { setBlobUrl(null); setTextContent(null); return; }
-    setLoadingBlob(true);
-    documentApi.download(doc.id)
+    if (!open || !previewId) return;
+    let cancelled = false;
+    let objectUrl = null;
+    documentApi.download(previewId)
       .then(async res => {
-        const mime = doc.typeMime || '';
+        const mime = previewMime || '';
         const blob = new Blob([res.data], { type: mime || 'application/octet-stream' });
         const url = URL.createObjectURL(blob);
+        objectUrl = url;
+        const text = mime.startsWith('text/') || /\.(txt|csv|json|xml|md|log|yml|yaml|html|css|js|ts|jsx|tsx)$/i.test(previewName || '')
+          ? await blob.text()
+          : null;
+        if (cancelled) { URL.revokeObjectURL(url); return; }
+        setBlobDocId(previewId);
         setBlobUrl(url);
-        if (mime.startsWith('text/') || /\.(txt|csv|json|xml|md|log|yml|yaml|html|css|js|ts|jsx|tsx)$/i.test(doc.nom)) {
-          setTextContent(await blob.text());
-        }
+        setTextContent(text);
       })
-      .catch(() => toast.error('Impossible de charger le fichier'))
-      .finally(() => setLoadingBlob(false));
-    return () => { setBlobUrl(u => { if (u) URL.revokeObjectURL(u); return null; }); };
-  }, [open, doc?.id]);
+      .catch(err => { if (!cancelled) toast.error(err.response?.data?.message || 'Impossible de charger le fichier'); });
+    return () => { cancelled = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [open, previewId, previewMime, previewName]);
 
   if (!open || !doc) return null;
 
@@ -244,7 +247,7 @@ function PreviewModal({ doc, open, onClose, onDownload, onDispatch, currentUserI
   const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(nom);
   const isVideo = mime.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi)$/i.test(nom);
   const isAudio = mime.startsWith('audio/') || /\.(mp3|wav|ogg|flac|aac|m4a)$/i.test(nom);
-  const isText = textContent !== null;
+  const isText = currentTextContent !== null;
   const Icon = TYPE_ICON[doc.type] || File;
   const color = TYPE_COLOR[doc.type] || 'var(--text-muted)';
   const { label, name } = getDisplayName(doc, currentUserId);
@@ -253,21 +256,19 @@ function PreviewModal({ doc, open, onClose, onDownload, onDispatch, currentUserI
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-surface)', borderRadius: 'var(--radius-xl)', width: '100%', maxWidth: 900, maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.4)', overflow: 'hidden' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 20px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon size={17} style={{ color }} />
-          </div>
+          <IconBox icon={<Icon size={17} />} color={color} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', margin: 0 }}>{doc.nom}</p>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 2, flexWrap: 'wrap' }}>
               <Badge size="sm" style={{ background: `${color}18`, color }}>{doc.type}</Badge>
               {doc.taille && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{bytesToSize(doc.taille)}</span>}
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                {label} : <strong>{name}</strong>
+                {label} : <strong>{name}</strong> <SucursaleBadge sucursalNom={doc.sucursalNom} />
               </span>
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <Button variant="ghost" size="sm" onClick={() => { onClose(); onDispatch(doc); }} style={{ color: 'var(--color-primary)' }}><Send size={14} /> Dispatcher</Button>
+            {!readOnly && <Button variant="ghost" size="sm" onClick={() => { onClose(); onDispatch(doc); }} style={{ color: 'var(--color-primary)' }}><Send size={14} /> Dispatcher</Button>}
             <Button variant="secondary" size="sm" onClick={() => onDownload(doc)}><Download size={14} /> Telecharger</Button>
             <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)', background: 'var(--bg-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={15} /></button>
           </div>
@@ -278,22 +279,22 @@ function PreviewModal({ doc, open, onClose, onDownload, onDispatch, currentUserI
               <div style={{ width: 38, height: 38, borderRadius: '50%', border: '3px solid var(--border-default)', borderTopColor: 'var(--color-primary)', animation: 'spin 0.8s linear infinite' }} />
               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Chargement…</span>
             </div>
-          ) : blobUrl && isImage ? (
-            <img src={blobUrl} alt={nom} style={{ maxWidth: '100%', maxHeight: '76vh', objectFit: 'contain', borderRadius: 'var(--radius-md)', padding: 12 }} />
-          ) : blobUrl && isPdf ? (
-            <iframe src={blobUrl} title={nom} style={{ width: '100%', height: '76vh', border: 'none' }} />
-          ) : blobUrl && isVideo ? (
-            <video controls src={blobUrl} style={{ maxWidth: '100%', maxHeight: '76vh', borderRadius: 'var(--radius-md)', padding: 12 }} />
-          ) : blobUrl && isAudio ? (
+          ) : currentBlobUrl && isImage ? (
+            <img src={currentBlobUrl} alt={nom} style={{ maxWidth: '100%', maxHeight: '76vh', objectFit: 'contain', borderRadius: 'var(--radius-md)', padding: 12 }} />
+          ) : currentBlobUrl && isPdf ? (
+            <iframe src={currentBlobUrl} title={nom} style={{ width: '100%', height: '76vh', border: 'none' }} />
+          ) : currentBlobUrl && isVideo ? (
+            <video controls src={currentBlobUrl} style={{ maxWidth: '100%', maxHeight: '76vh', borderRadius: 'var(--radius-md)', padding: 12 }} />
+          ) : currentBlobUrl && isAudio ? (
             <div style={{ padding: 40, textAlign: 'center' }}>
               <div style={{ width: 72, height: 72, borderRadius: '50%', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <Icon size={32} style={{ color }} />
               </div>
-              <audio controls src={blobUrl} style={{ width: 340 }} />
+              <audio controls src={currentBlobUrl} style={{ width: 340 }} />
             </div>
-          ) : blobUrl && isText ? (
-            <pre style={{ width: '100%', margin: 0, padding: '16px 20px', fontSize: 13, fontFamily: 'monospace', lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'transparent', overflowX: 'auto' }}>{textContent}</pre>
-          ) : blobUrl ? (
+          ) : currentBlobUrl && isText ? (
+            <pre style={{ width: '100%', margin: 0, padding: '16px 20px', fontSize: 13, fontFamily: 'monospace', lineHeight: 1.6, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'transparent', overflowX: 'auto' }}>{currentTextContent}</pre>
+          ) : currentBlobUrl ? (
             <div style={{ textAlign: 'center', padding: 48 }}>
               <div style={{ width: 80, height: 80, borderRadius: 'var(--radius-xl)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
                 <Icon size={40} style={{ color }} />
@@ -313,8 +314,6 @@ function DispatchModal({ doc, open, onClose, currentUser, onSuccess }) {
   const { notifyDocumentTransfer } = useNotifications();
   const [recipient, setRecipient] = useState(null);
   const [sending, setSending] = useState(false);
-
-  useEffect(() => { if (open) setRecipient(null); }, [open]);
 
   const handleSend = async () => {
     if (!recipient) { toast.error('Veuillez selectionner un destinataire'); return; }
@@ -351,9 +350,7 @@ function DispatchModal({ doc, open, onClose, currentUser, onSuccess }) {
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 'var(--radius-md)', background: 'var(--bg-muted)' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon size={17} style={{ color }} />
-          </div>
+          <IconBox icon={<Icon size={17} />} color={color} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <p style={{ fontWeight: 600, fontSize: 13, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.nom}</p>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
@@ -378,14 +375,21 @@ function DispatchModal({ doc, open, onClose, currentUser, onSuccess }) {
 
 export default function Documents() {
   const { user } = useAuth();
+  const isSecretary = user?.roleName === 'SECRETAIRE';
+  const readOnly = false;
   const { notifyDocument } = useNotifications();
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('');
+  const { showSucursal, optionsFiltre: sucursalFiltreOptions,
+          optionsFormulaire: sucursalFormOptions, correspond: sucursalMatch,
+          compteAncre, sucursalUtilisateurNom } = useSucursales();
+  const [filterSuc, setFilterSuc] = useState('');
   const [viewMode, setViewMode] = useState('grid');
-  const [currentUser, setCurrentUser] = useState(null);
+  const [profileUser, setProfileUser] = useState(null);
+  const currentUser = user || profileUser;
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [editItem, setEditItem] = useState(null);
@@ -396,23 +400,22 @@ export default function Documents() {
   const [file, setFile] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const [recipient, setRecipient] = useState(null);
-  const [form, setForm] = useState({ nom: '', description: '', type: 'AUTRE' });
-  const [editForm, setEditForm] = useState({ nom: '', description: '', type: 'AUTRE' });
+  const [form, setForm] = useState({ nom: '', description: '', type: 'AUTRE', sucursalId: '' });
+  const [editForm, setEditForm] = useState({ nom: '', description: '', type: 'AUTRE', sucursalId: '' });
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const fileRef = useRef();
 
   useEffect(() => {
-    if (user) { setCurrentUser(user); return; }
-    authApi.profile().then(r => setCurrentUser(r.data?.data || r.data)).catch(() => {});
+    if (user) return;
+    authApi.profile().then(r => setProfileUser(r.data?.data || r.data)).catch(() => {});
   }, [user]);
 
   const load = async () => {
-    setLoading(true);
     try {
       const role = user?.roleName;
       let res;
-      if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'MANAGER') {
+      if (role === 'SUPER_ADMIN' || role === 'ADMIN' || role === 'MANAGER' || role === 'SECRETAIRE') {
         res = await documentApi.getAll({ page: 0, size: 100 });
       } else {
         res = await documentApi.getMyDocuments({ page: 0, size: 100 });
@@ -425,17 +428,18 @@ export default function Documents() {
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { if (user) load(); }, [user?.id]);
+  useDeferredTask(() => { if (user) return load(); }, user?.id || 'no-user');
 
   const filtered = data.filter(d =>
     (!search || d.nom?.toLowerCase().includes(search.toLowerCase())) &&
-    (!filterType || d.type === filterType)
+    (!filterType || d.type === filterType) &&
+    sucursalMatch(d, filterSuc)
   );
 
   const resetUpload = () => {
     setFile(null);
     setRecipient(null);
-    setForm({ nom: '', description: '', type: 'AUTRE' });
+    setForm({ nom: '', description: '', type: 'AUTRE', sucursalId: '' });
   };
 
   const handleDrop = (e) => {
@@ -456,11 +460,9 @@ export default function Documents() {
         type: form.type || 'AUTRE',
         publique: false,
         destinataireId: recipient.id,
+        sucursalId: form.sucursalId ? Number(form.sucursalId) : null,
       };
-      const fd = new FormData();
-      fd.append('document', new Blob([JSON.stringify(payload)], { type: 'application/json' }));
-      fd.append('fichier', file, file.name);
-      const response = await documentApi.upload(fd);
+      const response = await documentApi.upload(payload, file);
       
       notifyDocument({
         doc: { id: response.data?.id, nom: form.nom || file.name },
@@ -469,7 +471,7 @@ export default function Documents() {
         currentUser,
       });
       
-      toast.success(`Document envoye a ${recipient.name}`);
+      toast.success(`Document envoyé à ${recipient.name}`);
       setUploadOpen(false);
       resetUpload();
       load();
@@ -481,7 +483,7 @@ export default function Documents() {
   const handleEdit = async () => {
     setSaving(true);
     try {
-      await documentApi.update(editItem.id, { ...editForm, publique: false });
+      await documentApi.update(editItem.id, { ...editForm, publique: false, sucursalId: editForm.sucursalId ? Number(editForm.sucursalId) : null });
       
       notifyDocument({
         doc: { id: editItem.id, nom: editForm.nom },
@@ -489,7 +491,7 @@ export default function Documents() {
         currentUser,
       });
       
-      toast.success('Document modifie');
+      toast.success('Document modifié');
       setEditItem(null);
       load();
     } catch { toast.error('Erreur modification'); }
@@ -507,7 +509,7 @@ export default function Documents() {
         currentUser,
       });
       
-      toast.success('Document supprime');
+      toast.success('Document supprimé');
       setDeleteItem(null);
       load();
     } catch (err) {
@@ -527,7 +529,7 @@ export default function Documents() {
 
   const openEdit = (doc) => {
     setEditItem(doc);
-    setEditForm({ nom: doc.nom || '', description: doc.description || '', type: doc.type || 'AUTRE' });
+    setEditForm({ nom: doc.nom || '', description: doc.description || '', type: doc.type || 'AUTRE', sucursalId: doc.sucursalId ? String(doc.sucursalId) : '' });
   };
 
   const setF = k => e => setForm(f => ({ ...f, [k]: e.target?.value ?? e }));
@@ -546,25 +548,39 @@ export default function Documents() {
         </Button>
       </PageHeader>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
-        <div onClick={() => setFilterType('')} style={{ padding: '10px 16px', borderRadius: 'var(--radius-lg)', background: !filterType ? 'var(--color-primary)' : 'var(--bg-surface)', border: `1px solid ${!filterType ? 'transparent' : 'var(--border-default)'}`, cursor: 'pointer', minWidth: 80, textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: !filterType ? '#fff' : 'var(--text-primary)' }}>{data.length}</div>
-          <div style={{ fontSize: 12, fontWeight: 500, color: !filterType ? '#fff' : 'var(--text-muted)' }}>Tous</div>
-        </div>
+      <StatsGrid>
+        {/* Tous */}
+        <StatCard
+          title="Tous"
+          value={data.length}
+          icon={<FileText size={22} />}
+          color="var(--color-primary)"
+          onClick={() => setFilterType('')}
+          active={!filterType}
+        />
         {statsByType.map(({ type, count, color }) => (
-          <div key={type} onClick={() => setFilterType(filterType === type ? '' : type)}
-            style={{ padding: '10px 16px', borderRadius: 'var(--radius-lg)', background: filterType === type ? color : 'var(--bg-surface)', border: `1px solid ${filterType === type ? 'transparent' : `${color}40`}`, cursor: 'pointer', minWidth: 80, textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 700, color: filterType === type ? '#fff' : color }}>{count}</div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: filterType === type ? '#fff' : color }}>{type}</div>
-          </div>
+          <StatCard
+            key={type}
+            title={type}
+            value={count}
+            icon={(() => { const I = TYPE_ICON[type] || File; return <I size={22} />; })()}
+            color={color}
+            onClick={() => setFilterType(filterType === type ? '' : type)}
+            active={filterType === type}
+          />
         ))}
-      </div>
+      </StatsGrid>
 
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <SearchInput value={search} onChange={setSearch} placeholder="Rechercher un document…" />
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          {showSucursal && (
+            <select value={filterSuc} onChange={e => setFilterSuc(e.target.value)} title="Filtrer par succursale d'origine" style={{ padding: '9px 14px', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer' }}>
+              {sucursalFiltreOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          )}
           <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{filtered.length} resultat{filtered.length !== 1 ? 's' : ''}</span>
           <div style={{ display: 'flex', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
             <button onClick={() => setViewMode('grid')} style={{ padding: '8px 16px', border: 'none', background: viewMode === 'grid' ? 'var(--color-primary)' : 'var(--bg-surface)', color: viewMode === 'grid' ? '#fff' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -580,7 +596,7 @@ export default function Documents() {
       {loading ? (
         <div style={{ display: 'grid', gridTemplateColumns: viewMode === 'grid' ? 'repeat(auto-fill, minmax(280px, 1fr))' : '1fr', gap: 14 }}>
           {[1, 2, 3, 4, 5, 6].map(i => (
-            <div key={i} style={{ height: viewMode === 'grid' ? 160 : 64, background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)', animation: 'pulse 1.5s infinite', border: '1px solid var(--border-default)' }} />
+            <Skeleton key={i} height={viewMode === 'grid' ? 160 : 64} radius="var(--radius-lg)" />
           ))}
         </div>
       ) : filtered.length === 0 ? (
@@ -594,7 +610,7 @@ export default function Documents() {
           {filtered.map(doc => (
             <DocCard key={doc.id} doc={doc} currentUserId={currentUserId} viewMode="grid"
               onEdit={openEdit} onDelete={setDeleteItem} onDownload={handleDownload}
-              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} />
+              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={!isSecretary || String(doc.expediteurId) === String(currentUserId)} canDelete={!isSecretary} />
           ))}
         </div>
       ) : (
@@ -611,7 +627,7 @@ export default function Documents() {
           {filtered.map(doc => (
             <DocCard key={doc.id} doc={doc} currentUserId={currentUserId} viewMode="list"
               onEdit={openEdit} onDelete={setDeleteItem} onDownload={handleDownload}
-              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} />
+              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={!isSecretary || String(doc.expediteurId) === String(currentUserId)} canDelete={!isSecretary} />
           ))}
         </Card>
       )}
@@ -649,6 +665,9 @@ export default function Documents() {
             <Select label="Type" value={form.type} onChange={setF('type')} options={TYPES.map(t => ({ value: t, label: t }))} />
           </FormRow>
 
+          <SucursaleField showSucursal={showSucursal} value={form.sucursalId} onChange={setF('sucursalId')}
+            options={sucursalFormOptions} compteAncre={compteAncre} sucursalUtilisateurNom={sucursalUtilisateurNom} />
+
           <Textarea label="Description" value={form.description} onChange={setF('description')} placeholder="Description…" rows={2} />
 
           <div style={{ padding: '12px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-primary)30', background: 'var(--color-primary-light)' }}>
@@ -659,6 +678,7 @@ export default function Documents() {
               value={recipient}
               onSelect={setRecipient}
               excludeId={currentUser?.id}
+              isSecretary={isSecretary}
               placeholder="Rechercher le destinataire…"
             />
           </div>
@@ -676,6 +696,9 @@ export default function Documents() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Input label="Nom" value={editForm.nom} onChange={e => setEditForm(f => ({ ...f, nom: e.target.value }))} placeholder="Nom du document" />
           <Select label="Type" value={editForm.type} onChange={e => setEditForm(f => ({ ...f, type: e.target.value }))} options={TYPES.map(t => ({ value: t, label: t }))} />
+          <SucursaleField showSucursal={showSucursal} value={editForm.sucursalId}
+            onChange={e => setEditForm(f => ({ ...f, sucursalId: e.target.value }))}
+            options={sucursalFormOptions} compteAncre={compteAncre} sucursalUtilisateurNom={sucursalUtilisateurNom} />
           <Textarea label="Description" value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} placeholder="Description…" rows={3} />
         </div>
       </Modal>
@@ -685,9 +708,9 @@ export default function Documents() {
         confirmLabel="Supprimer" confirmVariant="danger" />
 
       <PreviewModal doc={previewDoc} open={!!previewDoc} onClose={() => setPreviewDoc(null)}
-        onDownload={handleDownload} onDispatch={setDispatchDoc} currentUserId={currentUserId} />
+        onDownload={handleDownload} onDispatch={setDispatchDoc} currentUserId={currentUserId} readOnly={readOnly} />
 
-      <DispatchModal doc={dispatchDoc} open={!!dispatchDoc} onClose={() => setDispatchDoc(null)}
+      <DispatchModal key={dispatchDoc?.id || 'closed'} doc={dispatchDoc} open={!!dispatchDoc} onClose={() => setDispatchDoc(null)}
         currentUser={currentUser} onSuccess={load} />
 
       <style>{`

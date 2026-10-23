@@ -14,7 +14,7 @@ function timeAgo(iso) {
 }
 
 export default function NotificationBell() {
-  const { notifications, unreadCount, markRead, markAllRead, clearAll, NOTIF_META } = useNotifications();
+  const { notifications, unreadCount, markRead, markAllRead, clearAll } = useNotifications();
   const [open, setOpen] = useState(false);
   const ref = useRef();
 
@@ -22,12 +22,18 @@ export default function NotificationBell() {
     const handler = (e) => {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
     };
+    const escapeHandler = (e) => { if (e.key === 'Escape') setOpen(false); };
     document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    document.addEventListener('keydown', escapeHandler);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', escapeHandler);
+    };
   }, []);
 
+  /* Ancre du dropdown : le panneau s'aligne sur le bord droit du bouton cloche. */
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
       <button
         onClick={() => setOpen(o => !o)}
         style={{
@@ -57,15 +63,17 @@ export default function NotificationBell() {
       </button>
 
       {open && (
+        /* Centre de notifications : menu déroulant ancré sous la cloche (pattern dropdown du Header) */
         <div style={{
-          position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 999,
-          width: 360, maxHeight: 480,
+          position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+          width: 480, maxWidth: 'calc(100vw - 32px)', maxHeight: 520,
           background: 'var(--bg-surface)',
           border: '1px solid var(--border-default)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-xl)',
           display: 'flex', flexDirection: 'column',
-          overflow: 'hidden',
+          overflow: 'hidden', zIndex: 200,
+          animation: 'slideDown 0.15s ease',
         }}>
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -124,30 +132,29 @@ export default function NotificationBell() {
                   Aucune notification
                 </p>
               </div>
-            ) : notifications.map(notif => {
-              const meta = NOTIF_META[notif.type] || { icon: '🔔', color: '#94A3B8', label: 'Notification' };
-              return (
-                <div
+            ) : notifications.map(notif => (
+              // Icone unique : cloche neutre partout (aucune icone par type, aucun emoji).
+              <div
                   key={notif.id}
                   onClick={() => markRead(notif.id)}
                   style={{
                     display: 'flex', gap: 12, padding: '12px 16px',
                     borderBottom: '1px solid var(--border-muted)',
-                    background: notif.read ? 'transparent' : `${meta.color}08`,
+                    background: notif.read ? 'transparent' : '#64748B08',
                     cursor: 'pointer',
-                    borderLeft: notif.read ? 'none' : `3px solid ${meta.color}`,
+                    borderLeft: notif.read ? 'none' : '3px solid #64748B',
                     transition: 'background var(--transition-fast)',
                   }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-muted)'}
-                  onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : `${meta.color}08`}
+                  onMouseLeave={e => e.currentTarget.style.background = notif.read ? 'transparent' : '#64748B08'}
                 >
                   <div style={{
                     width: 36, height: 36, borderRadius: '50%',
-                    background: `${meta.color}18`,
+                    background: '#64748B18',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    flexShrink: 0, fontSize: 16,
+                    flexShrink: 0, color: '#64748B',
                   }}>
-                    {meta.icon}
+                    <Bell size={16} />
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -171,12 +178,11 @@ export default function NotificationBell() {
                   {!notif.read && (
                     <div style={{
                       width: 8, height: 8, borderRadius: '50%',
-                      background: meta.color, flexShrink: 0, marginTop: 4,
+                      background: '#64748B', flexShrink: 0, marginTop: 4,
                     }} />
                   )}
                 </div>
-              );
-            })}
+              ))}
           </div>
         </div>
       )}

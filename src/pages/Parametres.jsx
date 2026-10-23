@@ -1,23 +1,22 @@
-import { Card, PageHeader, Button } from '../components/ui';
-import { useTheme } from '../contexts/Themecontext';
-import { Sun, Moon, Monitor, Bell, Globe, Shield } from 'lucide-react';
+import React from 'react';
+import { Card, PageHeader, IconBox } from '../components/ui';
+import { useTheme } from '../contexts/useTheme';
+import { Sun, Moon, Monitor, Bell, Globe } from 'lucide-react';
 
-export default function Parametres() {
-  const { theme, toggleTheme } = useTheme();
-
-  const Section = ({ title, icon: Icon, children }) => (
+function Section({ title, icon: _SectionIcon, children }) {
+  return (
     <Card style={{ marginBottom:20 }}>
       <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20, paddingBottom:16, borderBottom:'1px solid var(--border-default)' }}>
-        <div style={{ width:36, height:36, borderRadius:'var(--radius-md)', background:'var(--color-primary-light)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <Icon size={18} style={{ color:'var(--color-primary)' }}/>
-        </div>
+        <IconBox icon={_SectionIcon ? React.createElement(_SectionIcon, { size: 18 }) : null} color="var(--color-primary)" />
         <h3 style={{ fontFamily:'var(--font-display)', fontWeight:700, fontSize:16 }}>{title}</h3>
       </div>
       {children}
     </Card>
   );
+}
 
-  const Toggle = ({ label, desc, checked, onChange }) => (
+function Toggle({ label, desc, checked, onChange }) {
+  return (
     <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'12px 0', borderBottom:'1px solid var(--border-muted)' }}>
       <div>
         <p style={{ fontWeight:500, fontSize:14 }}>{label}</p>
@@ -31,6 +30,10 @@ export default function Parametres() {
       </button>
     </div>
   );
+}
+
+export default function Parametres() {
+  const { theme, toggleTheme } = useTheme();
 
   return (
     <div>
@@ -42,7 +45,7 @@ export default function Parametres() {
             {[
               { key:'light', label:'Clair', icon:Sun },
               { key:'dark',  label:'Sombre', icon:Moon },
-            ].map(({ key, label, icon:Icon }) => (
+            ].map(({ key, label, icon:_ThemeIcon }) => (
               <button key={key} onClick={() => { if(theme!==key) toggleTheme(); }}
                 style={{
                   flex:1, padding:'16px 12px', border:`2px solid ${theme===key?'var(--color-primary)':'var(--border-default)'}`,
@@ -50,7 +53,7 @@ export default function Parametres() {
                   cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:8,
                   transition:'all var(--transition-fast)',
                 }}>
-                <Icon size={20} style={{ color:theme===key?'var(--color-primary)':'var(--text-muted)' }}/>
+                {_ThemeIcon && React.createElement(_ThemeIcon, { size: 20, style: { color:theme===key?'var(--color-primary)':'var(--text-muted)' } })}
                 <span style={{ fontSize:13, fontWeight:600, color:theme===key?'var(--color-primary)':'var(--text-secondary)' }}>{label}</span>
               </button>
             ))}
@@ -86,3 +89,4 @@ export default function Parametres() {
     </div>
   );
 }
+
