@@ -3,27 +3,52 @@ import { User, Lock, Bell, Camera, FileText, File, Wallet, Upload, Download, Cal
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/Authcontext'
 import { useDeferredTask } from '../hooks/useDeferredTask'
-import { employerApi, paieApi, documentApi } from '../Api'
+import { employerApi, paieApi, documentApi, demandePermissionApi } from '../Api'
 import { Card, Button, Input, Alert, Avatar, Badge } from '../components/ui'
 
 export default function Profil() {
   const { user } = useAuth()
   const [tab, setTab] = useState('info')
   const [bulletins, setBulletins] = useState([])
+  const [demandesPermission, setDemandesPermission] = useState([])
   const [paieLoaded, setPaieLoaded] = useState(false)
   const loadingPaie = tab === 'paie' && !paieLoaded
   const [cvDocs, setCvDocs] = useState([])
   const [cvUploading, setCvUploading] = useState(false)
 
-  /* Chargement bulletins + congés au premier accès à l'onglet paie */
-  const loadTabData = () => {
+  const responseList = response => {
+    const payload = response?.data?.data ?? response?.data ?? response
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.content)) return payload.content
+    if (Array.isArray(payload?.data)) return payload.data
+    return []
+  }
+
+  /* Chargement des bulletins et de toutes les demandes personnelles au premier accès. */
+  const loadTabData = async () => {
     if (tab === 'paie' && !paieLoaded && user?.id) {
-      paieApi.bulletins({ employeId: user.id })
-        .then(b => {
-          setBulletins(b?.data || [])
-        })
-        .catch(() => toast.error('Erreur lors du chargement de la paie'))
-        .finally(() => setPaieLoaded(true))
+      const [bulletinsResult, permissionsResult] = await Promise.allSettled([
+        paieApi.bulletins({ employeId: user.id, page: 0, size: 500 }),
+        demandePermissionApi.mes(),
+      ])
+
+      if (bulletinsResult.status === 'fulfilled') {
+        setBulletins(responseList(bulletinsResult.value))
+      } else {
+        setBulletins([])
+        toast.error('Erreur lors du chargement de la paie')
+      }
+
+      if (permissionsResult.status === 'fulfilled') {
+        const demandes = responseList(permissionsResult.value)
+        setDemandesPermission(demandes.sort((a, b) =>
+          String(b.dateCreation || b.dateDebut || '').localeCompare(String(a.dateCreation || a.dateDebut || ''))
+        ))
+      } else {
+        setDemandesPermission([])
+        toast.error('Erreur lors du chargement de vos demandes de permission')
+      }
+      setPaieLoaded(true)
     }
     if (tab === 'cv' && user?.id) {
       documentApi.getMyDocuments({ size: 100, sort: 'dateCreation,desc' })
@@ -79,6 +104,17 @@ export default function Profil() {
 
   const MOIS_FR = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre']
   const fmt = v => v != null ? new Intl.NumberFormat('fr-FR').format(v) + ' FCFA' : '—'
+  const formatDate = value => value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('fr-FR') : '—'
+  const permissionStatus = {
+    EN_ATTENTE: { label: 'En attente', variant: 'warning' },
+    APPROUVEE: { label: 'Approuvée', variant: 'success' },
+    REJETEE: { label: 'Rejetée', variant: 'danger' },
+    ANNULEE: { label: 'Annulée', variant: 'default' },
+  }
+  const permissionTypes = {
+    SORTIE: 'Sortie', ABSENCE_JOURNEE: 'Absence', CONGE_ANNUEL: 'Congé annuel',
+    CONGE_MALADIE: 'Congé maladie', PERMISSION_SANS_SOLDE: 'Permission sans solde', AUTRE: 'Autre',
+  }
 
 
   /* Changement mot de passe */
@@ -305,7 +341,7 @@ export default function Profil() {
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 16 }}>Mes bulletins de paie</h3>
             {loadingPaie ? (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Chargement…</p>
-            ) : bulletins.length === 0 ? (
+            ) : !Array.isArray(bulletins) || bulletins.length === 0 ? (
               <Alert type="info">Aucun bulletin disponible pour le moment. Ils apparaîtront dès la première génération de paie par votre administrateur.</Alert>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -334,11 +370,38 @@ export default function Profil() {
           </Card>
 
           <Card>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Horaires & absences</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>Mes demandes de permission et de congé</h3>
             <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 14 }}>
-              Horaires standards : Lundi – Vendredi, 8h00 – 17h00 (pause 12h–13h).
+              Retrouvez ici toutes vos demandes, quel que soit leur statut.
             </p>
-            <Alert type="info">La gestion des congés n'est plus disponible.</Alert>
+            {loadingPaie ? (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Chargement…</p>
+            ) : !Array.isArray(demandesPermission) || demandesPermission.length === 0 ? (
+              <Alert type="info">Vous n’avez pas encore de demande de permission ou de congé.</Alert>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {demandesPermission.map(demande => {
+                  const status = permissionStatus[demande.statut] || { label: demande.statut || 'Inconnu', variant: 'default' }
+                  return (
+                    <div key={demande.id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12,
+                      padding: '12px 14px', background: 'var(--bg-hover)', borderRadius: 'var(--radius-md)',
+                    }}>
+                      <div>
+                        <p style={{ fontSize: 13, fontWeight: 600 }}>{permissionTypes[demande.type] || demande.type || 'Permission'}</p>
+                        <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>
+                          {formatDate(demande.dateDebut)}{demande.dateFin && demande.dateFin !== demande.dateDebut ? ` – ${formatDate(demande.dateFin)}` : ''}
+                          {demande.dureeJours ? ` · ${demande.dureeJours} jour${demande.dureeJours > 1 ? 's' : ''}` : ''}
+                        </p>
+                        {demande.motif && <p style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>{demande.motif}</p>}
+                        {demande.commentaireValideur && <p style={{ fontSize: 12, marginTop: 4 }}>Commentaire : {demande.commentaireValideur}</p>}
+                      </div>
+                      <Badge variant={status.variant}>{status.label}</Badge>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </Card>
         </div>
       )}
