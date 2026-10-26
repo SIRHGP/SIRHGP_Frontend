@@ -48,6 +48,12 @@ export default function Audit() {
   const { user } = useAuth();
   // sont scopés côté serveur (le paramètre serait ignoré), inutile de l'afficher.
   const isSuperAdmin = user?.roleName === 'SUPER_ADMIN';
+  const canViewAnomalies = ['SUPER_ADMIN', 'ADMIN'].includes(user?.roleName);
+  const scopeLabel = isSuperAdmin ? 'Plateforme entière'
+    : user?.roleName === 'ADMIN' ? 'Votre entreprise'
+    : user?.roleName === 'MANAGER' ? `Votre succursale${user?.sucursalNom ? ` : ${user.sucursalNom}` : ''}`
+    : user?.roleName === 'LEAD' ? `Vos départements${user?.departementNom ? ` : ${user.departementNom}` : ''}`
+    : 'Votre périmètre autorisé';
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
@@ -69,8 +75,9 @@ export default function Audit() {
   const [entreprises, setEntreprises] = useState([]);
 
   useEffect(() => {
+    if (!canViewAnomalies) return;
     auditApi.anomalies().then(r => setAnomalies(r.data?.data || r.data)).catch(() => setAnomalies(null));
-  }, []);
+  }, [canViewAnomalies]);
 
   useEffect(() => {
     if (!isSuperAdmin) return;
@@ -296,6 +303,10 @@ export default function Audit() {
           <Download size={16} /> Exporter
         </Button>
       </PageHeader>
+
+      <p role="note" style={{ margin: '-8px 0 18px', fontSize: 12, color: 'var(--text-muted)' }}>
+        Périmètre des journaux : <strong style={{ color: 'var(--text-secondary)' }}>{scopeLabel}</strong>. Les filtres et statistiques restent limités à ce périmètre.
+      </p>
 
       {anomalies && (anomalies.loginFailures?.length > 0 || anomalies.deleteSpike || anomalies.updateSpike) && (
         <Alert variant="danger" title="Anomalies détectées (fenêtres 24 h / 1 h)" style={{ marginBottom: 16 }}>

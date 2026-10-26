@@ -81,8 +81,8 @@ export default function RegisterEntreprise() {
 
             <Input label="Nom complet" required value={signup.adminNom} onChange={setSignupField('adminNom')} placeholder="ex: Jean Kamga"/>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <Input label="Email" type="email" required value={signup.adminEmail} onChange={setSignupField('adminEmail')} placeholder="admin@entreprise.cm"/>
-              <Input label="Mot de passe" type="password" required minLength={8} value={signup.motDePasse} onChange={setSignupField('motDePasse')} placeholder="8 caractères min."/>
+              <Input label="Email" type="email" name="username" autoComplete="username" required value={signup.adminEmail} onChange={setSignupField('adminEmail')} placeholder="admin@entreprise.cm"/>
+              <Input label="Mot de passe" type="password" autoComplete="new-password" required minLength={8} value={signup.motDePasse} onChange={setSignupField('motDePasse')} placeholder="8 caractères min."/>
             </div>
 
             {error && <Alert variant="danger">{error}</Alert>}

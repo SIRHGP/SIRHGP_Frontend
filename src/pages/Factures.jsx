@@ -815,7 +815,7 @@ export default function Factures() {
 
   const handleProjetChange = (e) => {
     const id = e.target?.value ?? e;
-    setForm(f => ({ ...f, projetId: id || '' }));
+    setForm(f => ({ ...f, projetId: id || '', ...(id ? {} : { sucursalId: '' }) }));
     loadProjetInfo(id, true);
   };
 
@@ -853,11 +853,10 @@ export default function Factures() {
     e.preventDefault();
     // Le bouton « Créer » du modal est hors du <form> : la validation native HTML
     // n'est jamais déclenchée → on valide ici les champs obligatoires du backend
-    // (FactureRequestDTO : titre, dateEmission, projetId non null, montant > 0).
+    // (FactureRequestDTO : titre, dateEmission et montant HT ; le projet est facultatif).
     const erreurs = [];
     if (!form.titre?.trim()) erreurs.push('Le titre est obligatoire');
     if (!form.dateEmission) erreurs.push("La date d'émission est obligatoire");
-    if (!form.projetId) erreurs.push('Le projet est obligatoire');
     if (!(parseFloat(form.montantHT) > 0)) erreurs.push('Le montant HT est obligatoire');
     if (form.sens === 'ACHAT' && !form.nomFournisseur?.trim()) erreurs.push('Le fournisseur est obligatoire (sens Achat)');
     if (erreurs.length) { erreurs.forEach(m => toast.error(m)); return; }
@@ -1427,8 +1426,8 @@ export default function Factures() {
               options={STATUTS.map(s => ({ value: s, label: STATUT_META[s].label }))} />
 
             <FormRow>
-              <Select label="Projet" value={form.projetId} onChange={handleProjetChange} required
-                options={[{ value: '', label: 'Aucun' }, ...projets.map(p => ({ value: p.id, label: p.nom }))]} />
+              <Select label="Projet (facultatif)" value={form.projetId} onChange={handleProjetChange}
+                options={[{ value: '', label: 'Sans projet' }, ...projets.map(p => ({ value: p.id, label: p.nom }))]} />
               <Select label="Departement" value={form.departementId} onChange={set('departementId')}
                 options={[{ value: '', label: 'Aucun' }, ...departements.map(d => ({ value: d.id, label: d.nom }))]} />
             </FormRow>

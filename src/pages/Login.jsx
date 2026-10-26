@@ -128,6 +128,8 @@ return (
               <Input
                 label="Adresse email"
                 type="email"
+                name="username"
+                autoComplete="username"
                 required
                 leftIcon={<Mail size={16}/>}
                 value={form.email}
@@ -138,6 +140,7 @@ return (
               <Input
                 label="Mot de passe"
                 type={showPwd ? 'text' : 'password'}
+                autoComplete="current-password"
                 required
                 leftIcon={<Lock size={16}/>}
                 rightIcon={

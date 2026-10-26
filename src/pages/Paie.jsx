@@ -11,6 +11,13 @@ import { useAuth } from '../contexts/Authcontext';
 const MOIS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 const fmt = (v) => v != null ? Number(v).toLocaleString('fr-FR') + ' FCFA' : '—';
 const norm = (s) => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+const responseList = (response) => {
+  const body = response?.data?.data ?? response?.data ?? response;
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.content)) return body.content;
+  if (Array.isArray(body?.data)) return body.data;
+  return [];
+};
 
 export default function Paie() {
   const now = new Date();
@@ -40,18 +47,15 @@ export default function Paie() {
       if (estGestion && departements.length === 0) {
         try {
           const dr = await departementApi.getAll({ size: 200 });
-          const dd = dr.data?.data || dr.data;
-          setDepartements(Array.isArray(dd) ? dd : dd?.content || []);
+          setDepartements(responseList(dr));
         } catch { /* non bloquant */ }
       }
       const res = await paieApi.bulletins({ page:0, size:500 });
-      const d = res.data?.data || res.data;
-      setBulletins(Array.isArray(d) ? d : d?.content || []);
+      setBulletins(responseList(res));
       if (estGestion) {
         try {
           const er = await employerApi.getAll({ size:500 });
-          const ed = er.data?.data || er.data;
-          setEmployes(Array.isArray(ed) ? ed : ed?.content || []);
+          setEmployes(responseList(er));
         } catch { /* non bloquant pour un gestionnaire sans accès employés */ }
       }
     } catch { toast.error('Erreur chargement bulletins'); }

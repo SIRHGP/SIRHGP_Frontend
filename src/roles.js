@@ -30,7 +30,7 @@ export const FEATURES = {
   entreprisesDetail: ['SUPER_ADMIN', 'ADMIN'], // detail : le SUPER_ADMIN gère tout, l'ADMIN configure le pointage de SON entreprise
   plateforme:   ['SUPER_ADMIN'],           // /admin/plateforme — /api/plateforme/** = SUPER_ADMIN
   sucursales:   ['SUPER_ADMIN', 'ADMIN'],  // lecture élargie backend (SA/ADMIN/MANAGER/LEAD, scope service) ; mutations = ADMIN
-  audit:        ['SUPER_ADMIN', 'ADMIN'],
+  audit:        ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD'],
   roles:        ['SUPER_ADMIN'],          // API d'administration complète réservée à SUPER_ADMIN ; /filtres est un contrat distinct
   permissions:  ['SUPER_ADMIN'],          // /api/permissions/** = SUPER_ADMIN
   actions:      ['SUPER_ADMIN'],          // /api/actions/** = SUPER_ADMIN

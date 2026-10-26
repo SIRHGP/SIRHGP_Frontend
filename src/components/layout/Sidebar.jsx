@@ -124,7 +124,7 @@ const MENU = [
       { label: 'Rôles', icon: Shield, path: '/admin/roles', roles: ['SUPER_ADMIN', 'ADMIN'] },
       { label: 'Permissions', icon: Zap, path: '/admin/permissions', roles: ['SUPER_ADMIN', 'ADMIN'] },
       { label: 'Actions', icon: Settings, path: '/admin/actions', roles: ['SUPER_ADMIN', 'ADMIN'] },
-      { label: 'Audit & Traçabilité', icon: Activity, path: '/admin/audit', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { label: 'Audit & Traçabilité', icon: Activity, path: '/admin/audit', roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD'] },
     ]
   },
 ];
