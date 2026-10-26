@@ -539,6 +539,12 @@ export default function Documents() {
   }));
 
   const currentUserId = currentUser?.id;
+  const roleName = currentUser?.roleName;
+  const canManageScopedDocuments = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(roleName);
+  const canEditDocument = doc => canManageScopedDocuments || (currentUserId != null && String(doc.expediteurId) === String(currentUserId));
+  const canDeleteDocument = doc => !isSecretary && (canManageScopedDocuments
+    || (currentUserId != null && (String(doc.expediteurId) === String(currentUserId)
+      || String(doc.destinataireId) === String(currentUserId))));
 
   return (
     <div>
@@ -610,7 +616,7 @@ export default function Documents() {
           {filtered.map(doc => (
             <DocCard key={doc.id} doc={doc} currentUserId={currentUserId} viewMode="grid"
               onEdit={openEdit} onDelete={setDeleteItem} onDownload={handleDownload}
-              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={!isSecretary || String(doc.expediteurId) === String(currentUserId)} canDelete={!isSecretary} />
+              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={canEditDocument(doc)} canDelete={canDeleteDocument(doc)} />
           ))}
         </div>
       ) : (
@@ -627,7 +633,7 @@ export default function Documents() {
           {filtered.map(doc => (
             <DocCard key={doc.id} doc={doc} currentUserId={currentUserId} viewMode="list"
               onEdit={openEdit} onDelete={setDeleteItem} onDownload={handleDownload}
-              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={!isSecretary || String(doc.expediteurId) === String(currentUserId)} canDelete={!isSecretary} />
+              onPreview={setPreviewDoc} onDispatch={setDispatchDoc} readOnly={readOnly} canEdit={canEditDocument(doc)} canDelete={canDeleteDocument(doc)} />
           ))}
         </Card>
       )}
