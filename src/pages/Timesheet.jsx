@@ -68,6 +68,7 @@ function bornesPeriode(tab) {
 export default function Timesheet() {
   const { user } = useAuth();
   const isSecretary = user?.roleName === 'SECRETAIRE';
+  const canValidatePermissions = ['LEAD', 'MANAGER', 'ADMIN', 'SUPER_ADMIN'].includes(user?.roleName);
   const { notifyPermission } = useNotifications();
   const [tab, setTab] = useState('semaine');
   const [aujourdhui, setAujourdhui] = useState(null);
@@ -110,10 +111,9 @@ export default function Timesheet() {
   useDeferredTask(loadPeriode, tab);
 
   const loadPerms = () => {
-    const pending = isSecretary
-      ? Promise.all([demandePermissionApi.mes()])
-      : Promise.all([demandePermissionApi.mes(), demandePermissionApi.aValider()]);
-    pending
+    const demandes = [demandePermissionApi.mes()];
+    if (canValidatePermissions) demandes.push(demandePermissionApi.aValider());
+    Promise.all(demandes)
       .then(([mes, av]) => {
         setMesPerms(mes.data?.data || []);
         setAValider(av?.data?.data || []);
@@ -121,7 +121,7 @@ export default function Timesheet() {
       .catch(() => { setMesPerms([]); setAValider([]); })
       .finally(() => setPermsLoading(false));
   };
-  useDeferredTask(loadPerms, isSecretary);
+  useDeferredTask(loadPerms, `${isSecretary}:${canValidatePermissions}`);
 
   const setP = (k) => (e) => setPermForm(f => ({ ...f, [k]: e.target.value }));
 

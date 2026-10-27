@@ -53,7 +53,7 @@ export const RESOURCES = {
     article: 'un employé', keywords: ['employe', 'employé', 'employer', 'salarie', 'salarié', 'collaborateur'],
     route: '/employes', api: employerApi,
     nameKey: 'name',
-    minRole: { read: 'STAFF', create: 'ADMIN', mutate: 'ADMIN' },
+    minRole: { read: 'LEAD', create: 'ADMIN', mutate: 'ADMIN' },
     create: {
       intro: 'Je vais créer un employé. J’ai besoin des informations suivantes :',
       fields: [
@@ -78,7 +78,7 @@ export const RESOURCES = {
     article: 'un département', keywords: ['departement', 'département', 'dept', 'direction'],
     route: '/departements', api: departementApi,
     nameKey: 'name',
-    minRole: { read: 'STAFF', create: 'ADMIN', mutate: 'ADMIN' },
+    minRole: { read: 'LEAD', create: 'ADMIN', mutate: 'ADMIN' },
     create: {
       intro: 'Je vais créer un département.',
       fields: [
