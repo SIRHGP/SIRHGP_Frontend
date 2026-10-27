@@ -62,10 +62,10 @@ export default function Sucursales() {
   const loadCandidates = async () => {
     if (candidates.length) return;
     try {
-      const res = await employerApi.getAll({ page: 0, size: 500 });
+      const res = await employerApi.managers();
       const d = res.data?.data || res.data;
       const list = Array.isArray(d) ? d : d?.content || [];
-      setCandidates(list.filter(e => e.actif && e.roleName !== 'SUPER_ADMIN'));
+      setCandidates(list.filter(e => e.actif && e.roleName === 'MANAGER'));
     } catch { setCandidates([]); }
   };
 

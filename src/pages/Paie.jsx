@@ -40,7 +40,8 @@ export default function Paie() {
   // (le backend force déjà employeId = soi dans PaieService.consulter). On évite
   // d'appeler /employers et /departements (403 pour ces rôles) qui feraient échouer
   // tout le Promise.all et masqueraient les bulletins.
-  const estGestion = ['ADMIN', 'MANAGER', 'LEAD'].includes(user?.roleName);
+  const estGestion = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD'].includes(user?.roleName);
+  const peutGererBulletins = user?.roleName === 'ADMIN';
 
   const load = async () => {
     try {
@@ -69,8 +70,12 @@ export default function Paie() {
       const res = await paieApi.pdf(b.id);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
-      a.href = url; a.download = `bulletin-${b.employeNom || b.id}.pdf`; a.click();
-      URL.revokeObjectURL(url);
+      a.href = url;
+      a.download = `bulletin-${b.employeNom || b.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch { toast.error('Erreur téléchargement'); }
   };
 
@@ -184,7 +189,7 @@ export default function Paie() {
     { key: 'netAPayer', label: 'Net à payer', render: v => <strong style={{ color: 'var(--color-success)' }}>{fmt(v)}</strong> },
     { key: 'mois', label: 'Période', render: (v, row) => `${MOIS[(row.mois || 1) - 1].slice(0, 3)} ${row.annee}` },
     { key: 'actions', label: 'Actions', align: 'right', render: (v, row) => (
-      estGestion ? (
+      peutGererBulletins ? (
         <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }} onClick={(ev) => ev.stopPropagation()}>
           <Button size="sm" variant="secondary" onClick={() => ouvrirModifier(row)}>
             <Pencil size={13} />&nbsp;Modifier
@@ -195,7 +200,7 @@ export default function Paie() {
         </div>
       ) : null
     )},
-    { key: 'id', label: estGestion ? '' : 'Actions', align: 'right', render: (v, row) => (
+    { key: 'id', label: peutGererBulletins ? '' : 'Actions', align: 'right', render: (v, row) => (
       <Button size="sm" variant="secondary" onClick={(ev) => { ev.stopPropagation(); downloadPdf(row); }}>
         <Download size={14} />&nbsp;PDF
       </Button>

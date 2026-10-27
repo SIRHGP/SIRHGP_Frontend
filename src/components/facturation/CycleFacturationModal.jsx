@@ -339,13 +339,11 @@ function EtapeBonCommande({ cycle, onRefresh, verrouillee }) {
         module: form.module,
         tauxTVA: parseFloat(tauxTVA) || TVA_DEFAUT,
         assujettiTVA: assujetti,
+        montantHT: lignes.reduce((total, ligne) => total + Number(ligne.quantite) * Number(ligne.prixUnitaire), 0),
         lignesFacture: lignes.map(l => ({
           description: l.description.trim(),
           quantite: Number(l.quantite),
           prixUnitaire: Number(l.prixUnitaire),
-          compteComptable: l.compteComptable || '706',
-          remisePct: 0,
-          tauxTVA: parseFloat(tauxTVA) || TVA_DEFAUT,
         })),
       });
       toast.success('Bon de commande généré — étape 2/3 validée');
@@ -503,13 +501,11 @@ function EtapeFinale({ cycle, onRefresh, verrouillee }) {
         module: 'AUTRE',
         tauxTVA: parseFloat(tauxTVA) || TVA_DEFAUT,
         assujettiTVA: assujetti,
+        montantHT: lignes.reduce((total, ligne) => total + Number(ligne.quantite) * Number(ligne.prixUnitaire), 0),
         lignesFacture: lignes.map(l => ({
           description: l.description.trim(),
           quantite: Number(l.quantite),
           prixUnitaire: Number(l.prixUnitaire),
-          compteComptable: l.compteComptable || '706',
-          remisePct: 0,
-          tauxTVA: parseFloat(tauxTVA) || TVA_DEFAUT,
         })),
       });
       toast.success('Facture régulière enregistrée — étape 3/3 validée');

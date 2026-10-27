@@ -60,6 +60,7 @@ export const employerApi = {
   delete: (id) => api.delete(`/employers/${id}`),
   organigramme: () => api.get('/employers/organigramme'),
   leads: () => api.get('/employers/leads'),
+  managers: () => api.get('/employers/managers'),
   changePassword: (id, data) => api.patch(`/employers/${id}/change-password`, null, {
     params: { ancienMotDePasse: data.ancienMotDePasse, nouveauMotDePasse: data.nouveauMotDePasse },
   }),

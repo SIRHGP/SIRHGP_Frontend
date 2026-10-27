@@ -4,10 +4,14 @@ import { SquarePlus, Pencil, Trash2, Briefcase, Building2, Users } from 'lucide-
 import { posteApi, departementApi } from '../Api';
 import { PageHeader, Card, Table, Badge, Button, Modal, Input, Select, Confirm, SearchInput, FormRow, StatsGrid, StatCard, IconBox, Flex } from '../components/ui';
 import toast from 'react-hot-toast';
+import { useAuth } from '../contexts/Authcontext';
 
 const EMPTY = { name:'', description:'', departementId:'' };
 
 export default function Postes() {
+  const { user } = useAuth();
+  const peutCreer = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.roleName);
+  const peutModifier = ['SUPER_ADMIN', 'ADMIN'].includes(user?.roleName);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -78,8 +82,8 @@ export default function Postes() {
         { key:'nombreEmployes', label:'Employés', render:v => <Badge variant="info" size="sm"><Users size={10}/>&nbsp;{v??0}</Badge> },
     { key:'id', label:'', align:'right', render:(v,row) => (
       <Flex gap={6} justify="flex-end">
-        <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();openEdit(row);}}><Pencil size={14}/></Button>
-        <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();setDeleteItem(row);}} style={{ color:'var(--color-danger)' }}><Trash2 size={14}/></Button>
+        {peutModifier && <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();openEdit(row);}}><Pencil size={14}/></Button>}
+        {user?.roleName === 'SUPER_ADMIN' && <Button variant="ghost" size="sm" onClick={e=>{e.stopPropagation();setDeleteItem(row);}} style={{ color:'var(--color-danger)' }}><Trash2 size={14}/></Button>}
       </Flex>
     )},
   ];
@@ -87,7 +91,7 @@ export default function Postes() {
   return (
     <div>
       <PageHeader title="Postes" subtitle={`${data.length} poste${data.length!==1?'s':''}`}>
-        <Button onClick={openCreate}><SquarePlus size={16}/>Nouveau poste</Button>
+        {peutCreer && <Button onClick={openCreate}><SquarePlus size={16}/>Nouveau poste</Button>}
       </PageHeader>
 
       {/* Statistiques */}

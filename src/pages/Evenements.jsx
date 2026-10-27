@@ -441,12 +441,14 @@ export default function Evenements({ currentUser: currentUserProp, isAdmin = fal
   useDeferredTask(load, JSON.stringify([currentUserRole, currentUserId, showEntrepriseFilter, filterEntreprise, filterSuc]));
 
   useEffect(() => {
+    const canListEmployees = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD'].includes(currentUserRole);
     const employesRequest = currentUserRole === 'SECRETAIRE'
       ? secretariatApi.employes()
-      : employerApi.getAll({ size: 200 });
-    const departementsRequest = currentUserRole === 'SECRETAIRE'
-      ? Promise.resolve({ data: [] })
-      : departementApi?.getAll?.({ size: 200 }).catch(() => ({ data: [] }));
+      : canListEmployees ? employerApi.getAll({ size: 200 }) : Promise.resolve({ data: [] });
+    const canListDepartments = ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD'].includes(currentUserRole);
+    const departementsRequest = canListDepartments
+      ? departementApi?.getAll?.({ size: 200 }).catch(() => ({ data: [] }))
+      : Promise.resolve({ data: [] });
     Promise.all([projetApi.getAll({ size: 200 }), employesRequest, departementsRequest]).then(([p, e, d]) => {
       const pd = p.data?.data || p.data; setProjets(Array.isArray(pd) ? pd : pd?.content || []);
       const ed = e.data?.data || e.data; setEmployes(Array.isArray(ed) ? ed : ed?.content || []);

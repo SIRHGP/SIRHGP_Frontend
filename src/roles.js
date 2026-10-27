@@ -38,7 +38,7 @@ export const FEATURES = {
   employes:     ['ADMIN', 'MANAGER', 'LEAD', 'SECRETAIRE'],  // secrétaire : liste de pointage limitée à sa succursale
   departements: ['ADMIN', 'MANAGER', 'LEAD'],
   postes:       ['ADMIN', 'MANAGER', 'LEAD'],
-  paie:         ['ADMIN', 'MANAGER', 'LEAD', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // secrétaire, STAFF/STAGIAIRE voient leurs bulletins personnels
+  paie:         ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // consultation et téléchargement limités au périmètre du rôle
   recrutement:  ['ADMIN', 'MANAGER', 'LEAD'],
   organigramme: ['STAGIAIRE', 'STAFF', 'MANAGER', 'ADMIN'],
   evaluations:  ['LEAD', 'MANAGER', 'ADMIN'],

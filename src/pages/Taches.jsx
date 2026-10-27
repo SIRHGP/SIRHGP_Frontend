@@ -30,6 +30,7 @@ const EMPTY = {
 export default function Taches() {
   const { user } = useAuth();
   const isSecretary = user?.roleName === 'SECRETAIRE';
+  const isStaffOrStagiaire = ['STAFF', 'STAGIAIRE'].includes(user?.roleName);
   const createdByMe = task => String(task.createurId ?? task.createur?.id) === String(user?.id);
   const { notifyTask } = useNotifications();
   
@@ -79,13 +80,15 @@ export default function Taches() {
   useEffect(() => {
     Promise.all([
       fetchAllPages(projetApi.getAll, 200),
-      isSecretary ? secretariatApi.employes() : fetchAllPages(employerApi.getAll, 200),
+      isSecretary ? secretariatApi.employes()
+        : isStaffOrStagiaire ? Promise.resolve([])
+          : fetchAllPages(employerApi.getAll, 200),
     ]).then(([p, e]) => {
       const ed = e?.data?.data || e?.data || e;
       setProjets(p);
       setEmployes(Array.isArray(ed) ? ed : ed?.content || []);
     }).catch(() => toast.error('Erreur chargement des références'));
-  }, [isSecretary]);
+  }, [isSecretary, isStaffOrStagiaire]);
 
   const dataParSuccursale = data.filter(t => sucursalMatch(t, filterSuc));
   const filtered = dataParSuccursale.filter(t => {
@@ -346,7 +349,7 @@ export default function Taches() {
   return (
     <div>
       <PageHeader title="Gestion des Tâches" subtitle={`${stats.total} tâche${stats.total !== 1 ? 's' : ''} au total`}>
-        {<Button onClick={openCreate}>
+        {!isStaffOrStagiaire && <Button onClick={openCreate}>
           <SquarePlus size={16} />
           Nouvelle tâche
         </Button>}

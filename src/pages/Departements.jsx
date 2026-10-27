@@ -15,6 +15,8 @@ const STATUT_SUCURSAL = { ACTIVE: { label:'Active', variant:'success' }, SUSPEND
 
 export default function Departements() {
   const { user } = useAuth();
+  const peutCreerStructure = ['SUPER_ADMIN', 'ADMIN', 'MANAGER'].includes(user?.roleName);
+  const peutModifierStructure = ['SUPER_ADMIN', 'ADMIN'].includes(user?.roleName);
   const [searchParams, setSearchParams] = useSearchParams();
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,11 +108,12 @@ export default function Departements() {
     finally { setSucLoading(false); }
   };
   const loadSucCandidates = async () => {
+    if (user?.roleName !== 'ADMIN') { setSucCandidates([]); return; }
     try {
-      const res = await employerApi.getAll({ page: 0, size: 500 });
+      const res = await employerApi.managers();
       const d = res.data?.data || res.data;
       const list = Array.isArray(d) ? d : d?.content || [];
-      setSucCandidates(list.filter(e => e.actif && e.roleName !== 'SUPER_ADMIN'));
+      setSucCandidates(list.filter(e => e.actif && e.roleName === 'MANAGER'));
     } catch { setSucCandidates([]); }
   };
   // eslint-disable-next-line react-hooks/set-state-in-effect -- pattern identique à Audit.jsx (chargement initial de plusieurs ressources)
@@ -171,6 +174,10 @@ export default function Departements() {
     e.preventDefault();
     // Validation locale : évite l'aller-retour serveur (400) sur un nom vide.
     if (!form.name?.trim()) { toast.error('Le nom du département est obligatoire'); return; }
+    if (user?.roleName === 'MANAGER' && !form.superviseurId) {
+      toast.error('Choisissez un LEAD actif de votre succursale comme chef du département.');
+      return;
+    }
     setSaving(true);
     try {
       // '' → null : éviter une erreur de parse côté Jackson pour les champs Long
@@ -282,13 +289,13 @@ export default function Departements() {
     <div>
       <PageHeader title="Départements & Postes" subtitle="Structure organisationnelle : départements, postes, organigramme et sucursales">
         <Flex gap={10}>
-          {tab === 'departements' && user?.roleName !== 'LEAD' && (
+          {tab === 'departements' && peutCreerStructure && (
             <Button onClick={openCreate}><SquarePlus size={16} /> Nouveau département</Button>
           )}
-          {tab === 'postes' && (
+          {tab === 'postes' && peutCreerStructure && (
             <Button onClick={openCreatePoste}><SquarePlus size={16} /> Nouveau poste</Button>
           )}
-          {tab === 'sucursales' && user?.roleName !== 'LEAD' && (
+          {tab === 'sucursales' && user?.roleName === 'ADMIN' && (
             <Button onClick={openCreateSuc}><SquarePlus size={16} /> Nouvelle sucursal</Button>
           )}
         </Flex>
@@ -351,8 +358,8 @@ export default function Departements() {
                   </div>
                 </Flex>
                 <Flex gap={4}>
-                  <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEdit(d)}><Pencil size={14} /></Button>
-                  <Button variant="ghost" size="sm" title="Supprimer" onClick={() => setDeleteItem(d)}><Trash2 size={14} /></Button>
+                  {peutModifierStructure && <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEdit(d)}><Pencil size={14} /></Button>}
+                  {user?.roleName === 'SUPER_ADMIN' && <Button variant="ghost" size="sm" title="Supprimer" onClick={() => setDeleteItem(d)}><Trash2 size={14} /></Button>}
                 </Flex>
               </Flex>
               {d.description && (
@@ -384,8 +391,8 @@ export default function Departements() {
               { key: 'nombreEmployes', label: 'Employés', render: (v) => v ?? 0 },
               { key: 'id', label: '', align: 'right', render: (v, p) => (
                 <Flex gap={4}>
-                  <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEditPoste(p)}><Pencil size={14} /></Button>
-                  <Button variant="ghost" size="sm" title="Supprimer" onClick={() => setDeletePoste(p)}><Trash2 size={14} /></Button>
+                  {peutModifierStructure && <Button variant="ghost" size="sm" title="Modifier" onClick={() => openEditPoste(p)}><Pencil size={14} /></Button>}
+                  {user?.roleName === 'SUPER_ADMIN' && <Button variant="ghost" size="sm" title="Supprimer" onClick={() => setDeletePoste(p)}><Trash2 size={14} /></Button>}
                 </Flex>
               ) },
             ]}
@@ -473,7 +480,7 @@ export default function Departements() {
               votre entreprise{monAgenceId ? ` et à votre succursale (${user?.sucursalName || 'votre agence'})` : ''}.
             </Alert>
           ) : (
-            <Select label="Chef de département (rôle LEAD)" value={form.superviseurId}
+            <Select label={`Chef de département (rôle LEAD)${user?.roleName === 'MANAGER' ? ' *' : ''}`} required={user?.roleName === 'MANAGER'} value={form.superviseurId}
               onChange={e => setForm(f => ({ ...f, superviseurId: e.target.value }))}
               options={chefOptions} />
           )}

@@ -33,19 +33,16 @@ const STATUT_PERM = {
 };
 const PERM_VIDE = { type: 'SORTIE', dateDebut: '', dateFin: '', heureDebut: '', heureFin: '', motif: '' };
 
-/** Téléchargement du justificatif en blob (auth Bearer — window.open ne porte pas le token). */
-const telechargerJustificatif = async (docId, nom) => {
+const visualiserJustificatif = async (docId) => {
   try {
     const blob = await documentApi.download(docId);
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = nom || `justificatif_${docId}`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const opened = window.open(url, '_blank');
+    if (!opened) toast.error('Autorisez les fenêtres surgissantes pour afficher le justificatif');
+    else opened.opener = null;
+    window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
   } catch {
-    // Le justificatif peut avoir été purgé côté serveur : on informe l'utilisateur.
-    toast.error('Erreur lors du téléchargement du justificatif');
+    toast.error('Erreur lors de l’affichage du justificatif');
   }
 };
 
@@ -203,10 +200,10 @@ export default function Timesheet() {
     { key: 'statut', label: 'Statut', render: (v) => <Badge variant={STATUT_PERM[v]?.variant || 'default'}>{STATUT_PERM[v]?.label || v}</Badge> },
     { key: 'valideurNom', label: 'Valideur', render: (v) => v || <span style={{ color: 'var(--text-muted)' }}>Périmètre ADMIN</span> },
     { key: 'justificatifId', label: 'Justificatif', render: (v, r) => v ? (
-        <a href="#" style={{ color: 'var(--color-primary)', fontSize: 13 }}
-          onClick={(e) => { e.preventDefault(); telechargerJustificatif(v, r.justificatifNom); }}>
-          {r.justificatifNom || 'Télécharger'}
-        </a>
+        <Button size="sm" variant="ghost" leftIcon={<FileText size={13}/>}
+          onClick={() => visualiserJustificatif(v)}>
+          Voir le justificatif
+        </Button>
       ) : <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>—</span> },
     { key: 'commentaireValideur', label: 'Commentaire', render: (v) => v
         ? <span style={{ fontSize: 13 }}>{v}</span>
@@ -302,7 +299,7 @@ export default function Timesheet() {
                 </div>
                 <Flex gap={8}>
                   {p.justificatifId ? (
-                    <Button size="sm" variant="ghost" leftIcon={<FileText size={13}/>} onClick={() => telechargerJustificatif(p.justificatifId, p.justificatifNom)}>Justificatif</Button>
+                    <Button size="sm" variant="ghost" leftIcon={<FileText size={13}/>} onClick={() => visualiserJustificatif(p.justificatifId)}>Voir le justificatif</Button>
                   ) : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sans justificatif</span>}
                   <Button size="sm" variant="success" leftIcon={<Check size={14}/>} loading={busy} onClick={() => decider(p.id, 'APPROUVEE')}>Approuver</Button>
                   <Button size="sm" variant="danger" leftIcon={<X size={14}/>} onClick={() => setRejetModal(p)}>Rejeter</Button>

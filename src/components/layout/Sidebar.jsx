@@ -49,7 +49,7 @@ const MENU = [
         label: 'Paie',
         icon: FileText,
         path: '/paie',
-        roles: ['ADMIN', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // accès aux bulletins personnels en lecture seule
+        roles: ['SUPER_ADMIN', 'ADMIN', 'MANAGER', 'LEAD', 'STAFF', 'STAGIAIRE', 'SECRETAIRE'], // accès borné par le backend au périmètre du rôle
       },
       {
         label: 'Recrutement',
