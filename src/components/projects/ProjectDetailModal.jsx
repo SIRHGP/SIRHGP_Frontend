@@ -38,6 +38,12 @@ export default function ProjectDetailModal({ projectId, onClose }) {
 
   const people = projectPeople(project || {}, tasks);
   const members = people.filter(p => p.kind !== 'Intervenant sur une tâche');
+  const taskStats = {
+    total: tasks.length,
+    done: tasks.filter(task => task.statut === 'TERMINEE').length,
+    inProgress: tasks.filter(task => task.statut === 'EN_COURS').length,
+    overdue: tasks.filter(task => task.estEnRetard).length,
+  };
   const visible = filterProjectTasks(tasks, person, status, search);
   const showPerson = id => { setPerson(String(id)); setTab('tasks'); };
 
@@ -63,9 +69,9 @@ export default function ProjectDetailModal({ projectId, onClose }) {
                 <Card><div style={row}><Avatar name={project.chefProjet?.name || '?'} size={40} /><div><strong>Chef de projet : {project.chefProjet?.name || 'Non désigné'}</strong><p style={{ color: 'var(--text-muted)' }}>{project.chefProjet?.posteName || 'Poste non renseigné'}</p></div></div></Card>
                 <div style={grid}>
                   {[
-                    ['Personnes rattachées', members.length], ['Total des tâches', project.nombreTaches],
-                    ['Terminées', project.nombreTachesTerminees], ['En cours', project.nombreTachesEnCours],
-                    ['En retard', project.nombreTachesEnRetard],
+                    ['Personnes rattachées', members.length], ['Tâches consultables', taskStats.total],
+                    ['Terminées', taskStats.done], ['En cours', taskStats.inProgress],
+                    ['En retard', taskStats.overdue],
                   ].map(([label, value]) => <Card key={label}><p style={{ color: 'var(--text-muted)' }}>{label}</p><strong style={{ fontSize: 24 }}>{value ?? '—'}</strong></Card>)}
                 </div>
                 <div><p style={{ marginBottom: 8 }}>Progression globale : <strong>{project.progression ?? 0}%</strong></p><Progress value={project.progression ?? 0} /></div>
@@ -73,7 +79,7 @@ export default function ProjectDetailModal({ projectId, onClose }) {
               </>
             )}
             <p style={{ ...row, color: 'var(--text-muted)', fontSize: 13 }}>
-              <Lock size={15} /> {tasks.length} tâche(s) consultable(s) par vous. Les indicateurs globaux incluent toutes les tâches du projet ; les listes et compteurs par personne respectent la confidentialité.
+              <Lock size={15} /> {tasks.length} tâche(s) consultable(s) par vous. Les indicateurs affichés suivent votre périmètre d’accès.
             </p>
             {tab === 'team' && (
               <>

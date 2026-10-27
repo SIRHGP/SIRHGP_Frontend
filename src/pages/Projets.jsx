@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useDeferredTask } from '../hooks/useDeferredTask';
 import { SquarePlus, Pencil, Trash2, Users, Calendar, TrendingUp, Grid, List, CheckSquare, AlertTriangle, DollarSign, Eye } from 'lucide-react';
-import { projetApi, employerApi } from '../Api';
+import { projetApi, employerApi, departementApi, fetchAllPages } from '../Api';
 import { PageHeader, Card, Badge, Button, Modal, Input, Select, Confirm, SearchInput, Avatar, StatCard, StatsGrid, FormRow, Textarea, Progress, SucursaleBadge, SucursaleField } from '../components/ui';
 import { format, parseISO } from 'date-fns';
 import { fr } from 'date-fns/locale';
@@ -48,7 +48,7 @@ const EMPTY = {
 // ============================================================
 // Composant ProjetCard
 // ============================================================
-function ProjetCard({ p, onEdit, onDelete, onReport, onDetails, readOnly = false }) {
+function ProjetCard({ p, onEdit, onDelete, onReport, onDetails, readOnly = false, showFinancial = false }) {
   const st = STATUT_BADGE[p.statut] || STATUT_BADGE.PLANIFIE;
   const budget = p.budgetAlloue
     ? new Intl.NumberFormat('fr-CM', { style: 'currency', currency: 'XAF', maximumFractionDigits: 0 }).format(p.budgetAlloue)
@@ -85,11 +85,11 @@ function ProjetCard({ p, onEdit, onDelete, onReport, onDetails, readOnly = false
 
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 'auto' }}>
         {p.dateFinPrevue && (<span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {formatDate(p.dateFinPrevue)}</span>)}
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={12} /> {budget}</span>
+        {showFinancial && <span style={{ fontSize: 11, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><DollarSign size={12} /> {budget}</span>}
       </div>
 
       {/* [3.3] Consommation budget (réel vs alloué) */}
-      {p.budgetAlloue > 0 && (
+      {showFinancial && p.budgetAlloue > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ flex: 1 }}>
             <Progress value={Math.min(taux, 100)} color={depasse ? 'var(--color-danger)' : 'var(--color-primary)'} size="sm" />
@@ -109,10 +109,10 @@ function ProjetCard({ p, onEdit, onDelete, onReport, onDetails, readOnly = false
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: 12, borderTop: '1px solid var(--border-muted)', marginTop: 'auto' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
-          {p.chefProjetName ? (
+          {(p.chefProjetName || p.chefProjet?.name) ? (
             <>
-              <Avatar name={p.chefProjetName} size={22} />
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.chefProjetName.split(' ')[0]}</span>
+              <Avatar name={p.chefProjetName || p.chefProjet.name} size={22} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{(p.chefProjetName || p.chefProjet.name).split(' ')[0]}</span>
             </>
           ) : (
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
@@ -131,7 +131,9 @@ function ProjetCard({ p, onEdit, onDelete, onReport, onDetails, readOnly = false
 // ============================================================
 export default function Projets() {
   const { user } = useAuth();
-  const readOnly = user?.roleName === 'SECRETAIRE';
+  const canManage = ['ADMIN', 'MANAGER', 'LEAD'].includes(user?.roleName);
+  const readOnly = !canManage;
+  const showFinancial = ['ADMIN', 'MANAGER'].includes(user?.roleName);
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -148,7 +150,7 @@ export default function Projets() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [employes, setEmployes] = useState([]);
-  const [stats, setStats] = useState({});
+  const [departements, setDepartements] = useState([]);
   const [reportItem, setReportItem] = useState(null);
   const [reportData, setReportData] = useState(null);
   const [reportLoading, setReportLoading] = useState(false);
@@ -159,11 +161,8 @@ export default function Projets() {
   // ============================================================
   const load = async () => {
     try {
-      const [projRes, statsRes] = await Promise.allSettled([projetApi.getAll({ page: 0, size: 100 }), projetApi.getDashboardGlobal()]);
-
-      if (projRes.status === 'fulfilled') { const d = projRes.value.data?.data || projRes.value.data; setData(Array.isArray(d) ? d : d?.content || []); }
-
-      if (statsRes.status === 'fulfilled') { setStats(statsRes.value.data?.data || statsRes.value.data || {}); }
+      const projets = await fetchAllPages(projetApi.getAll, 200);
+      setData(Array.isArray(projets) ? projets : []);
     } catch (error) { console.error('Erreur chargement:', error); toast.error('Erreur chargement des projets'); } finally { setLoading(false); }
   };
   useDeferredTask(load, 'mount');
@@ -172,6 +171,7 @@ export default function Projets() {
   useEffect(() => {
     if (readOnly) return;
     employerApi.getAll({ size: 200 }).then(r => { const d = r.data?.data || r.data; setEmployes(Array.isArray(d) ? d : d?.content || []); }).catch(() => {});
+    fetchAllPages(departementApi.getAll, 200).then(setDepartements).catch(() => setDepartements([]));
   }, [readOnly]);
 
   // ============================================================
@@ -184,7 +184,7 @@ export default function Projets() {
   // ============================================================
   const openCreate = () => { setForm(EMPTY); setEditItem(null); setModalOpen(true); };
 
-  const openEdit = (item) => { setEditItem(item); setForm({ nom: item.nom || '', description: item.description || '', codeProjet: item.codeProjet || '', statut: item.statut || 'PLANIFIE', dateDebut: item.dateDebut || '', dateFinPrevue: item.dateFinPrevue || '', budgetAlloue: item.budgetAlloue || '', chefProjetId: item.chefProjetId || null, membresIds: item.membresIds || [], departementIds: item.departementIds || [], sucursalId: item.sucursalId || '', objectifPrincipal: item.objectifPrincipal || '', objectifSpecifique: item.objectifSpecifique || '', livrable: item.livrable || '', estimationDureeJours: item.estimationDureeJours || '' }); setModalOpen(true); };
+  const openEdit = (item) => { setEditItem(item); setForm({ nom: item.nom || '', description: item.description || '', codeProjet: item.codeProjet || '', statut: item.statut || 'PLANIFIE', dateDebut: item.dateDebut || '', dateFinPrevue: item.dateFinPrevue || '', budgetAlloue: item.budgetAlloue || '', chefProjetId: item.chefProjetId || item.chefProjet?.id || null, membresIds: item.membresIds || item.membres?.map(m => m.id) || [], departementIds: item.departementIds || item.departements?.map(d => d.id) || [], sucursalId: item.sucursalId || '', objectifPrincipal: item.objectifPrincipal || '', objectifSpecifique: item.objectifSpecifique || '', livrable: item.livrable || '', estimationDureeJours: item.estimationDureeJours || '' }); setModalOpen(true); };
 
   const setField = (k) => (e) => {
     const value = e.target?.value ?? e;
@@ -195,7 +195,7 @@ export default function Projets() {
     }
   };
 
-  const handleSave = async (e) => { e.preventDefault(); const errors = []; if (!form.nom?.trim()) errors.push('Le nom du projet est obligatoire'); if (!form.codeProjet?.trim()) errors.push('Le code projet est obligatoire'); if (!form.dateDebut) errors.push('La date de début est obligatoire'); if (!form.dateFinPrevue) errors.push('La date de fin prévue est obligatoire'); if (!form.chefProjetId) errors.push('Le chef de projet est obligatoire'); if (errors.length > 0) { errors.forEach(err => toast.error(err)); return; } const payload = { nom: form.nom.trim(), description: form.description?.trim() || null, codeProjet: form.codeProjet.trim().toUpperCase(), statut: form.statut, dateDebut: form.dateDebut, dateFinPrevue: form.dateFinPrevue, dateFinReelle: null, budgetAlloue: form.budgetAlloue ? parseFloat(form.budgetAlloue) : null, chefProjetId: Number(form.chefProjetId), membresIds: form.membresIds || [], departementIds: form.departementIds || [], sucursalId: form.sucursalId || null, objectifPrincipal: form.objectifPrincipal?.trim() || null, objectifSpecifique: form.objectifSpecifique?.trim() || null, livrable: form.livrable?.trim() || null, estimationDureeJours: form.estimationDureeJours ? parseInt(form.estimationDureeJours) : null }; setSaving(true); try { if (editItem) { await projetApi.update(editItem.id, payload); } else { await projetApi.create(payload); } toast.success(editItem ? 'Projet modifié avec succès' : 'Projet créé avec succès'); setModalOpen(false); load(); } catch (err) { const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Erreur lors de l\'enregistrement'; toast.error(message); } finally { setSaving(false); } };
+  const handleSave = async (e) => { e.preventDefault(); const errors = []; if (!form.nom?.trim()) errors.push('Le nom du projet est obligatoire'); if (!form.codeProjet?.trim()) errors.push('Le code projet est obligatoire'); if (!form.dateDebut) errors.push('La date de début est obligatoire'); if (!form.dateFinPrevue) errors.push('La date de fin prévue est obligatoire'); if (!form.chefProjetId) errors.push('Le chef de projet est obligatoire'); if (user?.roleName === 'LEAD' && !form.departementIds?.length) errors.push('Sélectionnez au moins un département que vous supervisez'); if (errors.length > 0) { errors.forEach(err => toast.error(err)); return; } const payload = { nom: form.nom.trim(), description: form.description?.trim() || null, codeProjet: form.codeProjet.trim().toUpperCase(), statut: form.statut, dateDebut: form.dateDebut, dateFinPrevue: form.dateFinPrevue, dateFinReelle: null, budgetAlloue: form.budgetAlloue ? parseFloat(form.budgetAlloue) : null, chefProjetId: Number(form.chefProjetId), membresIds: form.membresIds || [], departementIds: form.departementIds || [], sucursalId: form.sucursalId || null, objectifPrincipal: form.objectifPrincipal?.trim() || null, objectifSpecifique: form.objectifSpecifique?.trim() || null, livrable: form.livrable?.trim() || null, estimationDureeJours: form.estimationDureeJours ? parseInt(form.estimationDureeJours) : null }; setSaving(true); try { if (editItem) { await projetApi.update(editItem.id, payload); } else { await projetApi.create(payload); } toast.success(editItem ? 'Projet modifié avec succès' : 'Projet créé avec succès'); setModalOpen(false); load(); } catch (err) { const message = err.response?.data?.message || err.response?.data?.error || err.message || 'Erreur lors de l\'enregistrement'; toast.error(message); } finally { setSaving(false); } };
 
   const openReport = async (p) => {
     setReportItem(p);
@@ -226,10 +226,10 @@ export default function Projets() {
 
       {/* Stats */}
       <StatsGrid cols={4}>
-        <StatCard title="Total projets" value={stats?.totalProjets ?? data.length} icon={<Users size={22} />} color="var(--color-primary)" />
+        <StatCard title="Total projets" value={data.length} icon={<Users size={22} />} color="var(--color-primary)" />
         <StatCard title="En cours" value={data.filter(p => p.statut === 'EN_COURS').length} icon={<CheckSquare size={22} />} color="var(--color-info)" />
         <StatCard title="Terminés" value={data.filter(p => p.statut === 'TERMINE').length} icon={<TrendingUp size={22} />} color="var(--color-success)" />
-        <StatCard title="En retard" value={stats?.projetsEnRetard ?? 0} icon={<AlertTriangle size={22} />} color="var(--color-danger)" />
+        <StatCard title="En retard" value={data.filter(p => p.estEnRetard || p.statut === 'EN_RETARD').length} icon={<AlertTriangle size={22} />} color="var(--color-danger)" />
       </StatsGrid>
 
       {/* Filters & view toggle */}
@@ -275,7 +275,7 @@ export default function Projets() {
       ) : filtered.length === 0 ? (
         <Card style={{ textAlign: 'center', padding: '64px 24px' }}><p style={{ color: 'var(--text-muted)', fontSize: 16 }}>Aucun projet trouvé</p></Card>
       ) : view === 'grid' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}>{filtered.map(p => (<ProjetCard key={p.id} p={p} onEdit={openEdit} onDelete={setDeleteItem} onReport={openReport} onDetails={setDetailItem} readOnly={readOnly} />))}</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(320px,1fr))', gap: 16 }}>{filtered.map(p => (<ProjetCard key={p.id} p={p} onEdit={openEdit} onDelete={setDeleteItem} onReport={openReport} onDetails={setDetailItem} readOnly={readOnly} showFinancial={showFinancial} />))}</div>
       ) : (
         <Card padding={0}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '12px 20px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-muted)' }}>
@@ -307,8 +307,8 @@ export default function Projets() {
               </div>
               <span style={{ width: 100, fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatDate(p.dateFinPrevue)}</span>
               <div style={{ width: 76, display: 'flex', gap: 6 }}>
-                <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil size={14} /></Button>
-                <Button variant="ghost" size="sm" onClick={() => setDeleteItem(p)} style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>
+                {!readOnly && <Button variant="ghost" size="sm" onClick={() => openEdit(p)}><Pencil size={14} /></Button>}
+                {!readOnly && <Button variant="ghost" size="sm" onClick={() => setDeleteItem(p)} style={{ color: 'var(--color-danger)' }}><Trash2 size={14} /></Button>}
               </div>
             </div>
           );
@@ -338,6 +338,13 @@ export default function Projets() {
                 onChange={setField('sucursalId')} options={sucursalFormOptions}
                 compteAncre={compteAncre} sucursalUtilisateurNom={sucursalUtilisateurNom} />
             </FormRow>
+            <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Départements rattachés{user?.roleName === 'LEAD' ? ' *' : ''}
+              <select multiple value={(form.departementIds || []).map(String)} onChange={e => setForm(f => ({ ...f, departementIds: Array.from(e.target.selectedOptions, option => Number(option.value)) }))} style={{ minHeight: 96, padding: 8, border: '1px solid var(--border-default)', borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', color: 'var(--text-primary)' }}>
+                {departements.map(departement => <option key={departement.id} value={departement.id}>{departement.name}</option>)}
+              </select>
+              <span style={{ fontSize: 11, fontWeight: 400 }}>Maintenez Ctrl pour sélectionner plusieurs départements.</span>
+            </label>
             <Textarea label="Objectif principal" value={form.objectifPrincipal} onChange={setField('objectifPrincipal')} placeholder="Quel est l'objectif global du projet ?" rows={2} />
             <Textarea label="Objectif spécifique" value={form.objectifSpecifique} onChange={setField('objectifSpecifique')} placeholder="Résultat concret et mesurable attendu" rows={2} />
             <Textarea label="Livrable" value={form.livrable} onChange={setField('livrable')} placeholder="Produit, service ou document remis à la fin" rows={2} />
