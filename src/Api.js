@@ -194,7 +194,12 @@ export const documentApi = {
     formData.append('fichier', file);
     return api.post('/documents/me/cv', formData);
   },
-  uploadJustificatif: (formData) => api.post('/documents/upload', formData),
+  uploadJustificatif: (file, nom) => {
+    const formData = new FormData();
+    if (nom) formData.append('nom', nom);
+    formData.append('fichier', file, file.name);
+    return api.post('/documents/permission-justificatif', formData);
+  },
   transfer: (id, data) => api.post(`/documents/${id}/transfer`, data),
   update: (id, data) => api.put(`/documents/${id}`, data),
   download: (id) => api.get(`/documents/${id}/download`, { responseType: 'blob' }),

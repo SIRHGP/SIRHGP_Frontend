@@ -127,15 +127,8 @@ export default function Timesheet() {
 
   /** Upload du justificatif via le module Documents (même pattern que Employes.jsx). */
   const uploadJustificatif = async (file) => {
-    const fd = new FormData();
-    fd.append('document', new Blob([JSON.stringify({
-      nom: `Justificatif_permission_${permForm.dateDebut || ''}`,
-      description: `Justificatif de la demande de permission du ${permForm.dateDebut}`,
-      type: 'AUTRE',
-      publique: false,
-    })], { type: 'application/json' }));
-    fd.append('fichier', file, file.name);
-    const res = await documentApi.uploadJustificatif(fd);
+    const nom = `Justificatif_permission_${permForm.dateDebut || ''}`;
+    const res = await documentApi.uploadJustificatif(file, nom);
     const d = res?.data?.data || res?.data;
     return d?.id ?? null;
   };
@@ -358,7 +351,7 @@ export default function Timesheet() {
         <form onSubmit={soumettrePerm} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {permError && <Alert variant="danger">{permError}</Alert>}
           <Alert variant="info" style={{ fontSize: 12 }}>
-            Votre demande sera soumise au manager de votre succursale ou, si aucun manager actif n’est disponible, à un administrateur de votre entreprise.
+            Le justificatif est transmis automatiquement au valideur de votre entreprise selon votre rôle : STAFF/STAGIAIRE → LEAD, LEAD → MANAGER, MANAGER → ADMIN. Si aucun valideur n’est défini, il reste joint à votre demande.
           </Alert>
           <FormRow>
             <Select label="Type de permission *" value={permForm.type} onChange={setP('type')}
